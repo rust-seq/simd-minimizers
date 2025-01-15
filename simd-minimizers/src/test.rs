@@ -3,6 +3,7 @@ use crate::collect;
 use crate::{minimizers::*, nthash::*};
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
+use rand::Rng;
 use std::{iter::once, sync::LazyLock};
 
 static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024 * 32));
@@ -12,9 +13,16 @@ static PACKED_SEQ: LazyLock<PackedSeqVec> =
 fn test_on_inputs(f: impl Fn(usize, usize, AsciiSeq, PackedSeq)) {
     let ascii_seq = &*ASCII_SEQ;
     let packed_seq = &*PACKED_SEQ;
-    for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-        for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-            for len in (0..100).chain(once(1024 * 32)) {
+    let mut rng = rand::thread_rng();
+    let mut ks = vec![1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65];
+    let mut ws = vec![1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65];
+    let mut lens = (0..100).collect_vec();
+    ks.extend((0..10).map(|_| rng.gen_range(6..100)).collect_vec());
+    ws.extend((0..10).map(|_| rng.gen_range(6..100)).collect_vec());
+    lens.extend((0..10).map(|_| rng.gen_range(100..1024 * 32)).collect_vec());
+    for &k in &ks {
+        for &w in &ws {
+            for &len in &lens {
                 let ascii_seq = ascii_seq.slice(0..len);
                 let packed_seq = packed_seq.slice(0..len);
 

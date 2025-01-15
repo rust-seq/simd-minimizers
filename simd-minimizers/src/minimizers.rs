@@ -122,8 +122,8 @@ pub fn canonical_minimizers_seq_simd<'s>(
     });
 
     head.by_ref().take(l - 1).for_each(drop);
-
-    let tail = canonical_minimizers_seq_scalar(tail, k, w);
+    let head_len = head.len();
+    let tail = canonical_minimizers_seq_scalar(tail, k, w).map(move |p| p + 8 * head_len as u32);
     (head, tail)
 }
 

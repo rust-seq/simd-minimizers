@@ -23,7 +23,7 @@ impl ParHasher<L> for FxHashSimd {
 
 #[derive(Debug)]
 pub struct FxHashPackedSimdIt<'a> {
-    seq: &'a [u8],
+    _seq: &'a [u8],
     n: usize,
     k: usize,
     chars: S,
@@ -57,7 +57,7 @@ impl<'a> FxHashPackedSimdIt<'a> {
         let n = num_kmers / L;
 
         Some(Self {
-            seq,
+            _seq: seq,
             n,
             k,
             chars: S::splat(0),

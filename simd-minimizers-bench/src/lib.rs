@@ -1,3 +1,5 @@
+#![feature(portable_simd)]
+
 use itertools::Itertools;
 
 pub mod counting;

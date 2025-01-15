@@ -1,13 +1,12 @@
 #![feature(portable_simd)]
 #![allow(dead_code)]
-mod blog;
-use blog::*;
 use itertools::Itertools;
-use minimizers::{
+use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
+use simd_minimizers::{
     minimizer::*,
     nthash::{nthash32_par_it, nthash32_simd_it},
 };
-use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
+use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
@@ -20,7 +19,7 @@ criterion_group!(
         .measurement_time(Duration::from_millis(2000))
         .sample_size(10);
     targets = initial_runtime_comparison,
-        blog::counting::count_comparisons_bench,
+        counting::count_comparisons_bench,
         optimized, ext_nthash, buffered, local_nthash,
         simd_minimizer, human_genome
 );

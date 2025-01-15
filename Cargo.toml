@@ -1,45 +1,11 @@
-[package]
-name = "minimizers"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+    "simd-minimizers",
+    "simd-minimizers-bench",
+]
+resolver = "2"
 
 [profile.release]
+lto = "thin"
+incremental = true
 debug = true
-
-[dependencies]
-# Standard deps
-clap = { version = "4", features = ["derive"] }
-itertools = "0.12"
-rand = "0.8"
-rand_chacha = "0.9.0-alpha.1"
-rayon = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-num = "0.4"
-wyhash = "0.5"
-ctor = "0.2"
-color-backtrace = "0.6"
-
-# 'Our own' deps.
-packed-seq = { version = "0.1.0", git = "https://github.com/rust-seq/packed-seq" }
-# packed-seq = { version = "0.1.0", path = "../packed-seq" }
-typetag = "0.2.18"
-wide = "0.7.30"
-
-[dev-dependencies]
-criterion = "0.5.1"
-fxhash = "0.2"
-minimizer-iter = "1.2.1"
-needletail = "0.5.1"
-nthash = "0.5.1"
-
-[features]
-# Hides the `simd` warnings when neither AVX nor NEON is detected.
-hide-simd-warning = []
-
-[[bench]]
-name = "bench"
-harness = false

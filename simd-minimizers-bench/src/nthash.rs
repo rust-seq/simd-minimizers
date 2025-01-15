@@ -203,7 +203,7 @@ impl<const SMALL_K: bool> ParHasher<L> for NtHashSimd<SMALL_K> {
 
 #[derive(Debug)]
 pub struct NtHashPackedSimdIt<'a, const SMALL_K: bool> {
-    seq: &'a [u8],
+    _seq: &'a [u8],
     n: usize,
     k: usize,
     fh: S,
@@ -247,7 +247,7 @@ impl<'a, const SMALL_K: bool> NtHashPackedSimdIt<'a, SMALL_K> {
         .into();
 
         Some(Self {
-            seq,
+            _seq: seq,
             n,
             k,
             fh,

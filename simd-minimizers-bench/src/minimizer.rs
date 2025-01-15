@@ -3,9 +3,9 @@ use super::*;
 pub struct SuperKmer {
     /// The absolute position in the text where this super-k-mer starts.
     /// The end of the super-k-mer can be inferred from the start of the next super-k-mer.
-    start_pos: usize,
+    pub start_pos: usize,
     /// The absolute position in the text of the minimizer of this super-k-mer.
-    minimizer_pos: usize,
+    pub minimizer_pos: usize,
 }
 
 pub trait Minimizer {

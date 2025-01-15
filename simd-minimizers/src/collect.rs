@@ -143,7 +143,7 @@ pub fn collect_and_dedup<const SUPER: bool>(
         // Flatten v.
         for lane in v.iter() {
             let mut lane = lane.as_slice();
-            while Some(lane[0]) == out_vec.last().copied() {
+            while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
                 lane = &lane[1..];
             }
             out_vec.extend_from_slice(lane);

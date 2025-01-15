@@ -146,121 +146,47 @@ mod test {
 
     use super::*;
     use itertools::Itertools;
-    use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec, L};
+    use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
     use std::{iter::once, sync::LazyLock};
 
     static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024));
     static PACKED_SEQ: LazyLock<PackedSeqVec> =
         LazyLock::new(|| PackedSeqVec::from_ascii(&ASCII_SEQ.seq));
 
-    #[test]
-    fn scalar_ascii() {
-        let seq = &*ASCII_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let single = seq
-                    .0
-                    .windows(k)
-                    .map(|seq| hash_kmer::<false>(AsciiSeq(seq)))
-                    .collect::<Vec<_>>();
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                assert_eq!(single, scalar, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn scalar_packed() {
+    fn test_nthash<const RC: bool>() {
         let ascii_seq = &*ASCII_SEQ;
-        let seq = &*PACKED_SEQ;
+        let packed_seq = &*PACKED_SEQ;
         for k in [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
         ] {
             for len in (0..100).chain(once(1024)) {
                 let ascii_seq = ascii_seq.slice(0..len);
-                let seq = seq.slice(0..len);
+                let packed_seq = packed_seq.slice(0..len);
 
-                let scalar_ascii = hash_seq_scalar::<false>(ascii_seq, k).collect::<Vec<_>>();
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                assert_eq!(scalar_ascii, scalar, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn par_it_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = hash_seq_simd::<false>(seq, k, 1);
-                let par_head = par_head.collect::<Vec<_>>();
-                let parallel_iter = (0..L)
-                    .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                    .chain(tail)
+                let naive = ascii_seq
+                    .0
+                    .windows(k)
+                    .map(|seq| hash_kmer::<RC>(AsciiSeq(seq)))
                     .collect::<Vec<_>>();
+                let scalar_ascii = hash_seq_scalar::<RC>(ascii_seq, k).collect::<Vec<_>>();
+                let scalar_packed = hash_seq_scalar::<RC>(packed_seq, k).collect::<Vec<_>>();
+                let simd_packed = collect(hash_seq_simd::<RC>(packed_seq, k, 1));
 
-                assert_eq!(scalar, parallel_iter, "k={}, len={}", k, len);
+                assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
+                assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
+                assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
             }
         }
     }
 
     #[test]
-    fn parallel_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let parallel = collect(hash_seq_simd::<false>(seq, k, 1));
-                assert_eq!(scalar, parallel, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    // ignore test
-    #[ignore = "par_iter_bp_delayed is not implemented for ASCII"]
-    #[test]
-    fn parallel_byte() {
-        let seq = &*ASCII_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let parallel = collect(hash_seq_simd::<false>(seq, k, 1));
-                assert_eq!(scalar, parallel, "k={}, len={}", k, len);
-            }
-        }
+    fn forward() {
+        test_nthash::<false>();
     }
 
     #[test]
-    fn parallel_iter_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = hash_seq_simd::<false>(seq, k, 1);
-                let par_head = par_head.collect::<Vec<_>>();
-                let parallel_iter = (0..L)
-                    .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                    .chain(tail)
-                    .collect::<Vec<_>>();
-                assert_eq!(scalar, parallel_iter, "k={}, len={}", k, len);
-            }
-        }
+    fn canonical() {
+        test_nthash::<true>();
     }
 
     #[test]
@@ -291,60 +217,6 @@ mod test {
                     scalar.first().unwrap_or(&0),
                     scalar_rc_rc.first().unwrap_or(&0)
                 );
-            }
-        }
-    }
-
-    #[test]
-    fn scalar_byte_canonical() {
-        let seq = &*ASCII_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let single = seq
-                    .0
-                    .windows(k)
-                    .map(|seq| hash_kmer::<true>(AsciiSeq(seq)))
-                    .collect::<Vec<_>>();
-                let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-                assert_eq!(single, scalar, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn parallel_iter_packed_canonical() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = hash_seq_simd::<true>(seq, k, 1);
-                let par_head = par_head.collect::<Vec<_>>();
-                let parallel_iter = (0..L)
-                    .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                    .chain(tail)
-                    .collect::<Vec<_>>();
-                assert_eq!(scalar, parallel_iter, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn linearized() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain([973, 1024]) {
-                let seq = seq.slice(0..len);
-                let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-                let simd = collect(hash_seq_simd::<true>(seq, k, 1));
-                assert_eq!(scalar, simd, "k={}, len={}", k, len);
             }
         }
     }

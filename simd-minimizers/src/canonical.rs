@@ -6,9 +6,9 @@ use wide::{i32x8, CmpGt};
 use crate::Captures;
 
 /// An iterator over windows that returns for each whether it's canonical or not.
-/// Canonical windows have >half odd characters.
+/// Canonical windows have >half TG characters.
 /// Window length l=k+w-1 must be odd for this to never tie.
-pub fn canonical_scalar_it<'s>(
+pub fn canonical_windows_seq_scalar<'s>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
@@ -42,7 +42,7 @@ pub fn canonical_scalar_it<'s>(
 /// Split the kmers of the sequence into 8 chunks of equal length ~len/8.
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
-pub fn canonical_par_it<'s>(
+pub fn canonical_windows_seq_simd<'s>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
@@ -61,7 +61,7 @@ pub fn canonical_par_it<'s>(
     let mut head = add_remove.map(canonical_mapper(k, w));
     head.by_ref().take(l - 1).for_each(drop);
 
-    let tail = canonical_scalar_it(tail, k, w);
+    let tail = canonical_windows_seq_scalar(tail, k, w);
 
     (head, tail)
 }

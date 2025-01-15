@@ -12,15 +12,18 @@
     )
 )]
 
+// Private modules.
+mod dedup;
 mod intrinsics;
+
+// Public modules.
+pub mod canonical;
+pub mod collect;
 pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
 mod alex;
-mod canonical;
-pub mod collect;
-mod dedup;
 mod linearize;
 
 pub trait Captures<U> {}

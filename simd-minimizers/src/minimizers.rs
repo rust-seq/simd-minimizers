@@ -83,7 +83,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     // false: rightmost
     let right = sliding_min_scalar::<false>(kmer_hashes, w);
     // indicators whether each window is canonical
-    let canonical = canonical::canonical_scalar_it(seq, k, w);
+    let canonical = canonical::canonical_windows_seq_scalar(seq, k, w);
     zip(canonical, zip(left, right)).map(|(canonical, (left, right))| {
         // Select left or right based on canonical mask.
         if canonical {

@@ -1,6 +1,6 @@
 //! NtHash the kmers in a sequence.
 use super::intrinsics;
-use packed_seq::complement_base;
+use packed_seq::{complement_base, PackedSeq};
 use packed_seq::{Seq, S};
 
 pub trait Captures<U> {}
@@ -77,7 +77,7 @@ pub fn hash_seq_scalar<'s, const RC: bool>(
 ///
 /// Set `RC` to true for canonical ntHash.
 pub fn hash_seq_simd<'s, const RC: bool>(
-    seq: impl Seq<'s>,
+    seq: PackedSeq<'s>,
     k: usize,
     w: usize,
 ) -> (

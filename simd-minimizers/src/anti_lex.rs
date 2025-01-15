@@ -43,7 +43,7 @@ pub fn anti_lex_seq_scalar<'s>(
 /// The tail is returned separately.
 /// Returned chunks overlap by w-1 hashes. Set w=1 for non-overlapping chunks.
 pub fn anti_lex_seq_simd<'s>(
-    seq: impl Seq<'s>,
+    seq: PackedSeq<'s>,
     k: usize,
     w: usize,
 ) -> (

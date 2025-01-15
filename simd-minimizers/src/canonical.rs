@@ -1,7 +1,7 @@
 //! Determine whether each window is canonical, when `#GT > #AC`.
 use std::mem::transmute;
 
-use packed_seq::{Seq, S};
+use packed_seq::{PackedSeq, Seq, S};
 use wide::{i32x8, CmpGt};
 
 use crate::nthash::Captures;
@@ -44,7 +44,7 @@ pub fn canonical_windows_seq_scalar<'s>(
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 pub fn canonical_windows_seq_simd<'s>(
-    seq: impl Seq<'s>,
+    seq: PackedSeq<'s>,
     k: usize,
     w: usize,
 ) -> (

@@ -1,3 +1,12 @@
+/// Sliding window minimum over windows of size `w`.
+/// For each window, the absolute position of the minimum is returned.
+///
+/// Each method takes a `LEFT: bool` const generic. Set to `true` to break ties
+/// towards the leftmost minimum, and false for the rightmost minimum.
+///
+/// All these methods take 32 bit input values, **but they only use the upper 16 bits!**
+///
+/// Positions ar
 use core::array::from_fn;
 use packed_seq::S;
 use std::hint::assert_unchecked;
@@ -51,13 +60,9 @@ impl<V> std::ops::DerefMut for RingBuf<V> {
     }
 }
 
-/// Return the sliding window minimum of windows of size `w` of the input.
-/// When LEFT is true, break ties by the leftmost position.
-/// When false, return the rightmost position.
-///
-/// In the implementation, when searching the rightmost position, we invert the input hashes and use max instead of min.
+/// Scalar version. Takes an iterator over values and returns an iterator over positions.
 #[inline(always)]
-pub fn sliding_min_scalar_it<const LEFT: bool>(
+pub fn sliding_min_scalar<const LEFT: bool>(
     it: impl ExactSizeIterator<Item = u32>,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> {
@@ -131,9 +136,11 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
     }
 }
 
+/// SIMD version. Takes a SIMD-iterator over 8 lanes of values and returns an iterator over 8 lanes of positions.
+/// Requires an `ExactSizeIterator` to determine the length of the input.
 #[allow(unused)]
 #[inline(always)]
-pub fn sliding_min_par_it<const LEFT: bool>(
+pub fn sliding_min_simd<const LEFT: bool>(
     it: impl ExactSizeIterator<Item = S>,
     w: usize,
     k: usize,
@@ -145,6 +152,10 @@ pub fn sliding_min_par_it<const LEFT: bool>(
     it
 }
 
+/// Mapper version, that returns a function that can be called with new inputs as needed.
+/// Output values are offset by `-(k-1)`, so that the k'th returned value (the first kmer) is at position 0.
+/// `len` is the number of values in each chunk. The SIMD lanes will be offset by `len-(k+w-2)`.
+/// The first `k+w-2` returned values are bogus, since they correspond to incomplete windows.
 pub fn sliding_min_mapper<const LEFT: bool>(w: usize, k: usize, len: usize) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
@@ -221,8 +232,9 @@ fn reset_positions_offsets(
     }
 }
 
+/// Like `sliding_min_simd`, but returns both the leftmost and the rightmost minimum.
 #[inline(always)]
-pub fn sliding_lr_min_par_it(
+pub fn sliding_lr_min_simd(
     it: impl ExactSizeIterator<Item = S>,
     w: usize,
 ) -> impl ExactSizeIterator<Item = (S, S)> {
@@ -233,8 +245,7 @@ pub fn sliding_lr_min_par_it(
     it
 }
 
-/// Len: `size_hint().0` of the input iterator.
-/// First w-1 values are bogus.
+/// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.
 pub fn sliding_lr_min_mapper(w: usize, len: usize) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");

@@ -8,7 +8,7 @@ use super::{
     dedup,
     nthash::{hash_mapper, hash_seq_scalar, hash_seq_simd},
     sliding_min::{
-        sliding_lr_min_mapper, sliding_lr_min_par_it, sliding_min_mapper, sliding_min_scalar_it,
+        sliding_lr_min_mapper, sliding_lr_min_simd, sliding_min_mapper, sliding_min_scalar,
     },
 };
 use itertools::Itertools;
@@ -127,9 +127,9 @@ pub fn canonical_minimizer_scalar_it<'s>(
     // true: canonical
     let kmer_hashes = hash_seq_scalar::<true>(seq, k);
     // true: leftmost
-    let left = sliding_min_scalar_it::<true>(kmer_hashes.clone(), w);
+    let left = sliding_min_scalar::<true>(kmer_hashes.clone(), w);
     // false: rightmost
-    let right = sliding_min_scalar_it::<false>(kmer_hashes, w);
+    let right = sliding_min_scalar::<false>(kmer_hashes, w);
     // indicators whether each window is canonical
     let canonical = canonical::canonical_scalar_it(seq, k, w);
     zip(canonical, zip(left, right)).map(|(canonical, (left, right))| {
@@ -152,7 +152,7 @@ pub fn canonical_minimizer_par_it<'s>(
     impl ExactSizeIterator<Item = u32> + Captures<&'s ()>,
 ) {
     let (kmer_hashes, kmer_hashes_tail) = hash_seq_simd::<true>(seq, k, w);
-    let lr_min = sliding_lr_min_par_it(kmer_hashes, w);
+    let lr_min = sliding_lr_min_simd(kmer_hashes, w);
     let (canonical, canonical_tail) = canonical::canonical_par_it(seq, k, w);
     let head = zip(canonical, lr_min).map(
         #[inline(always)]
@@ -162,8 +162,8 @@ pub fn canonical_minimizer_par_it<'s>(
         },
     );
 
-    let left_tail = sliding_min_scalar_it::<true>(kmer_hashes_tail.clone(), w);
-    let right_tail = sliding_min_scalar_it::<false>(kmer_hashes_tail, w);
+    let left_tail = sliding_min_scalar::<true>(kmer_hashes_tail.clone(), w);
+    let right_tail = sliding_min_scalar::<false>(kmer_hashes_tail, w);
     let tail = zip(canonical_tail, zip(left_tail, right_tail)).map(
         #[inline(always)]
         |(canonical, (left, right))| {

@@ -112,7 +112,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
 
     let mut nthash = hash_mapper::<true>(k, w);
     let mut canonical = canonical_mapper(k, w);
-    let mut sliding_min = sliding_lr_min_mapper(w, add_remove.len());
+    let mut sliding_min = sliding_lr_min_mapper(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk, rl)| {
         let nthash = nthash((a, rk));

@@ -237,16 +237,17 @@ fn reset_positions_offsets(
 pub fn sliding_lr_min_simd(
     it: impl ExactSizeIterator<Item = S>,
     w: usize,
+    k: usize,
 ) -> impl ExactSizeIterator<Item = (S, S)> {
     let len = it.len();
-    let mut it = it.map(sliding_lr_min_mapper(w, len));
+    let mut it = it.map(sliding_lr_min_mapper(w, k, len));
     // This optimizes better than it.skip(w-1).
     it.by_ref().take(w - 1).for_each(drop);
     it
 }
 
 /// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.
-pub fn sliding_lr_min_mapper(w: usize, len: usize) -> impl FnMut(S) -> (S, S) {
+pub fn sliding_lr_min_mapper(w: usize, k: usize, len: usize) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
@@ -258,7 +259,8 @@ pub fn sliding_lr_min_mapper(w: usize, len: usize) -> impl FnMut(S) -> (S, S) {
     let pos_mask = S::splat(0x0000_ffff);
     let max_pos = S::splat((1 << 16) - 1);
     let mut pos = S::splat(0);
-    let mut pos_offset: S = from_fn(|l| (l * (len.saturating_sub(w - 1))) as u32).into();
+    let mut pos_offset: S =
+        from_fn(|l| (l * len.saturating_sub(k + w - 2)).wrapping_sub(k - 1) as u32).into();
 
     #[inline(always)]
     move |val| {

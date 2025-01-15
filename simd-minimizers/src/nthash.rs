@@ -49,7 +49,7 @@ pub fn hash_kmer<'s, const RC: bool>(seq: impl Seq<'s>) -> u32 {
 }
 
 /// Returns a scalar iterator over the 32-bit NT hashes of all k-mers in the sequence.
-/// Prefer `hash_simd`.
+/// Prefer `hash_seq_simd`.
 ///
 /// Set `RC` to true for canonical ntHash.
 pub fn hash_seq_scalar<'s, const RC: bool>(
@@ -105,6 +105,7 @@ pub fn hash_seq_simd<'s, const RC: bool>(
 
 /// A function that 'eats' added and removed bases, and returns the updated hash.
 /// The distance between them must be k-1, and the first k-1 removed bases must be 0.
+/// The first k-1 returned values will be useless.
 ///
 /// Set `RC` to true for canonical ntHash.
 pub fn hash_mapper<const RC: bool>(k: usize, w: usize) -> impl FnMut((S, S)) -> S + Clone {

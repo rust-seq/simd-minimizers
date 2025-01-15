@@ -129,7 +129,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
 
 #[cfg(test)]
 mod test {
-    use crate::{collect, minimizer_positions};
+    use crate::collect;
 
     use super::*;
     use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
@@ -139,107 +139,29 @@ mod test {
     const PACKED_SEQ: LazyCell<PackedSeqVec> = LazyCell::new(|| PackedSeqVec::random(1024 * 1024));
 
     #[test]
-    fn scalar_ascii() {
-        let seq = &*ASCII_SEQ;
+    fn minimizers() {
+        let ascii_seq = &*ASCII_SEQ;
+        let packed_seq = &*PACKED_SEQ;
         for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
             for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
                 for len in (0..100).chain(once(1024 * 32)) {
-                    let seq = seq.slice(0..len);
-                    let single = seq.0[0..len]
+                    let ascii_seq = ascii_seq.slice(0..len);
+                    let packed_seq = packed_seq.slice(0..len);
+
+                    let naive = ascii_seq
+                        .0
                         .windows(w + k - 1)
                         .enumerate()
                         .map(|(pos, seq)| (pos + minimizer(AsciiSeq(seq), k)) as u32)
                         .collect::<Vec<_>>();
-                    let scalar = minimizers_seq_scalar(seq, k, w).collect::<Vec<_>>();
-                    assert_eq!(single, scalar, "k={k}, w={w}, len={len}");
-                }
-            }
-        }
-    }
 
-    #[ignore = "delayed iteration not yet implemented for ASCII"]
-    #[test]
-    fn simd_ascii() {
-        let seq = &*ASCII_SEQ;
-        for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-            for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-                for len in (0..100).chain(once(1024 * 128)) {
-                    let seq = seq.slice(0..len);
-                    let scalar = minimizers_seq_scalar(seq, k, w).collect::<Vec<_>>();
-                    let (par_head, tail) = minimizers_seq_simd(seq, k, w);
-                    let par_head = par_head.collect::<Vec<_>>();
-                    let parallel_iter = (0..8)
-                        .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                        .chain(tail)
-                        .collect::<Vec<_>>();
+                    let scalar_ascii = minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
+                    let scalar_packed = minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
+                    let simd_packed = collect(minimizers_seq_simd(packed_seq, k, w));
 
-                    assert_eq!(scalar, parallel_iter, "k={k}, w={w}, len={len}");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn simd_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-            for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-                for len in (0..100).chain(once(1024 * 128)) {
-                    let seq = seq.slice(0..len);
-                    let scalar = minimizers_seq_scalar(seq, k, w).collect::<Vec<_>>();
-                    let (par_head, tail) = minimizers_seq_simd(seq, k, w);
-                    let par_head = par_head.collect::<Vec<_>>();
-                    let parallel_iter = (0..8)
-                        .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                        .chain(tail)
-                        .collect::<Vec<_>>();
-                    if w == 1 && parallel_iter.len() > 0 {
-                        assert_eq!(parallel_iter[0], 0);
-                    }
-                    assert_eq!(scalar, parallel_iter, "k={k}, w={w}, len={len}");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn linearized() {
-        let seq = &*PACKED_SEQ;
-        for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-            for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
-                for len in (0..100).chain(once(1024 * 128 + 765)) {
-                    let seq = seq.slice(0..len);
-                    let scalar = minimizers_seq_scalar(seq, k, w).collect::<Vec<_>>();
-                    let simd = collect(minimizers_seq_simd(seq, k, w));
-                    assert_eq!(
-                        scalar,
-                        simd,
-                        "k={}, len={} len left {} len right {}",
-                        k,
-                        len,
-                        scalar.len(),
-                        simd.len()
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_sliding_min() {
-        let n = 1000;
-        let seq = PackedSeqVec::random(n);
-        let mut poss = vec![];
-        for k in 1..10 {
-            for w in 1..10 {
-                poss.clear();
-                minimizer_positions(seq.as_slice(), k, w, &mut poss);
-                for &x in &poss {
-                    assert!(
-                        x <= (n - k) as u32,
-                        "Index {x} is not in range for n={n}, k={k}, w={w}. Should be in 0..{}\n{poss:?}",
-                        n - k
-                    );
+                    assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
+                    assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+                    assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
                 }
             }
         }

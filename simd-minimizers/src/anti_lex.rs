@@ -96,113 +96,39 @@ mod test {
     use crate::collect;
 
     use super::*;
-    use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec, L};
-    use std::{cell::LazyCell, iter::once};
+    use itertools::Itertools;
+    use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
+    use std::{iter::once, sync::LazyLock};
 
-    const ASCII_SEQ: LazyCell<AsciiSeqVec> = LazyCell::new(|| AsciiSeqVec::random(1024));
-    const PACKED_SEQ: LazyCell<PackedSeqVec> = LazyCell::new(|| PackedSeqVec::random(1024));
+    static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024));
+    static PACKED_SEQ: LazyLock<PackedSeqVec> =
+        LazyLock::new(|| PackedSeqVec::from_ascii(&ASCII_SEQ.seq));
 
     #[test]
-    fn scalar_byte() {
-        let seq = &*ASCII_SEQ;
+    fn test_nthash() {
+        let ascii_seq = &*ASCII_SEQ;
+        let packed_seq = &*PACKED_SEQ;
         for k in [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
         ] {
             for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let single = seq
+                let ascii_seq = ascii_seq.slice(0..len);
+                let packed_seq = packed_seq.slice(0..len);
+                // naive
+                let naive = ascii_seq
                     .0
                     .windows(k)
                     .map(|seq| anti_lex_kmer(AsciiSeq(seq)))
                     .collect::<Vec<_>>();
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                assert_eq!(single, scalar, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn parallel_byte() {
-        let seq = &*ASCII_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                let parallel = collect(anti_lex_seq_simd(seq, k, 1));
-                assert_eq!(scalar, parallel, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn parallel_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                let parallel = collect(anti_lex_seq_simd(seq, k, 1));
-                assert_eq!(scalar, parallel, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn parallel_iter_byte() {
-        let seq = &*ASCII_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = anti_lex_seq_simd(seq, k, 1);
-                let par_head = par_head.collect::<Vec<_>>();
-                let parallel_iter = (0..L)
-                    .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                    .chain(tail)
-                    .collect::<Vec<_>>();
-
-                assert_eq!(scalar, parallel_iter, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn parallel_iter_packed() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain(once(1024)) {
-                let seq = seq.slice(0..len);
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = anti_lex_seq_simd(seq, k, 1);
-                let par_head = par_head.collect::<Vec<_>>();
-                let parallel_iter = (0..L)
-                    .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
-                    .chain(tail)
-                    .collect::<Vec<_>>();
-                assert_eq!(scalar, parallel_iter, "k={}, len={}", k, len);
-            }
-        }
-    }
-
-    #[test]
-    fn linearized() {
-        let seq = &*PACKED_SEQ;
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            for len in (0..100).chain([973, 1024]) {
-                let seq = seq.slice(0..len);
-                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
-                let simd = collect(anti_lex_seq_simd(seq, k, 1));
-                assert_eq!(scalar, simd, "k={}, len={}", k, len);
+                // scalar ascii
+                let scalar_ascii = anti_lex_seq_scalar(ascii_seq, k).collect::<Vec<_>>();
+                // scalar packed
+                let scalar_packed = anti_lex_seq_scalar(packed_seq, k).collect::<Vec<_>>();
+                // simd packed
+                let simd_packed = collect(anti_lex_seq_simd(packed_seq, k, 1));
+                assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
+                assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
+                assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
             }
         }
     }

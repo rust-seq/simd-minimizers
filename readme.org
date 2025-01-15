@@ -1,23 +1,5 @@
-This repository hosts a number of different projects related to minimizers.
+* =simd-minimizers=
 
-1. In [[file:src/lib.rs][src/lib.rs]], reference implementations for the schemes presented in the mod-minimizer
-   [[https://doi.org/10.4230/LIPIcs.WABI.2024.11][paper]] with Giulio Ermanno Pibiri.
-   - See also [[https://curiouscoding.nl/posts/minimizers/][this blogpost]].
-   - These are also used for the lower bound [[https://doi.org/10.1101/2024.09.06.611668][paper]] with Bryce Kille:
-   - Python bindings available in [[file:src/py.rs][src/py.rs]].
-2. A fast implementation of random minimizers in [[file:src/par/][src/par/]], corresponding to [[https://curiouscoding.nl/posts/fast-minimizers/][this post]].
-   - Computes the minimizers of a human genome in around two seconds.
-   - Code for the blogpost and corresponding benchmarks are in [[file:benches/blog/][benches/blog]] and [[file:benches/bench.rs][benches/bench.rs]].
-3. Ongoing research on new sampling schemes.
-   - Plots and experiments are in [[file:py/plot.ipynb][py/plot.ipynb]].
+See =./simd-minimizers= for the main crate.
 
-* Implemented minimizer schemes
-
-- *Random minimizers*.
-- two versions of asymptotically optimal *Rotational minimizers* (Marçais et al., 2018) .
-- *Miniception*, and a small slightly improved variant of it.
-- *Decycling* and *double decycling* based minimizers (Pellow et al., 2023).
-- *Bidirectional anchors* (Loukides et al., 2023)
-- *Mod-sampling*, with *lr-minimizers* and *mod-minimizers* (our work).
-
-[[file:./fig/density_4.svg]]
+=./simd-minimizers-bench= contains benchmarks used in [[https://curiouscoding.nl/posts/fast-minimizers/][this blogpost]] and the WIP paper.

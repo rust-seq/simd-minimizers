@@ -10,18 +10,31 @@ use wide::u32x8;
 
 use super::dedup::append_unique_vals;
 
-/// Collect a SIMD-iterator into a single flat vector.
-/// Works by taking 8 elements from each stream, and transposing this SIMD-matrix before writing out the results.
-/// The `tail` is appended at the end.
-#[inline(always)]
+/// Convenience wrapper around `collect_into`.
 pub fn collect(
     (par_head, tail): (
         impl ExactSizeIterator<Item = S>,
         impl ExactSizeIterator<Item = u32>,
     ),
 ) -> Vec<u32> {
+    let mut v = vec![];
+    collect_into((par_head, tail), &mut v);
+    v
+}
+
+/// Collect a SIMD-iterator into a single flat vector.
+/// Works by taking 8 elements from each stream, and transposing this SIMD-matrix before writing out the results.
+/// The `tail` is appended at the end.
+#[inline(always)]
+pub fn collect_into(
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
+    out_vec: &mut Vec<u32>,
+) {
     let len = par_head.len();
-    let mut v = vec![0; len * 8 + tail.len()];
+    out_vec.resize(len * 8 + tail.len(), 0);
 
     let mut m = [unsafe { transmute([0; 8]) }; 8];
     let mut i = 0;
@@ -31,7 +44,8 @@ pub fn collect(
             let t = transpose(m);
             for j in 0..8 {
                 unsafe {
-                    *v.get_unchecked_mut(j * len + 8 * (i / 8)..j * len + 8 * (i / 8) + 8)
+                    *out_vec
+                        .get_unchecked_mut(j * len + 8 * (i / 8)..)
                         .split_first_chunk_mut::<8>()
                         .unwrap()
                         .0 = transmute(t[j]);
@@ -46,21 +60,31 @@ pub fn collect(
     let k = i % 8;
     for j in 0..8 {
         unsafe {
-            v[j * len + 8 * (i / 8)..j * len + 8 * (i / 8) + k]
+            out_vec[j * len + 8 * (i / 8)..j * len + 8 * (i / 8) + k]
                 .copy_from_slice(&transmute::<_, [u32; 8]>(t[j])[..k]);
         }
     }
 
     // Manually write the explicit tail.
     for (i, x) in tail.enumerate() {
-        v[8 * len + i] = x;
+        out_vec[8 * len + i] = x;
     }
-
-    v
 }
 
 thread_local! {
     static CACHE: RefCell<[Vec<u32>; 8]> = RefCell::new(array::from_fn(|_| Vec::new()));
+}
+
+/// Convenience wrapper around `collect_and_dedup_into`.
+pub fn collect_and_dedup<const SUPER: bool>(
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
+) -> Vec<u32> {
+    let mut v = vec![];
+    collect_and_dedup_into::<SUPER>((par_head, tail), &mut v);
+    v
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -71,7 +95,7 @@ thread_local! {
 /// and the high bits are the index of the stream it first appeared, i.e., the start of its super-k-mer.
 /// These positions are mod 2^16. When the window length is <2^16, this is sufficient to recover full super-k-mers.
 #[inline(always)]
-pub fn collect_and_dedup<const SUPER: bool>(
+pub fn collect_and_dedup_into<const SUPER: bool>(
     (par_head, tail): (
         impl ExactSizeIterator<Item = S>,
         impl ExactSizeIterator<Item = u32>,

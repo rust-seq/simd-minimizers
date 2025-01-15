@@ -1,6 +1,6 @@
 use super::*;
-use crate::collect;
 use crate::{minimizers::*, nthash::*};
+use collect::collect;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
 use rand::Rng;

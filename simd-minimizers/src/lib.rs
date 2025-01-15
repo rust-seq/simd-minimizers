@@ -84,6 +84,11 @@ pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
+/// Re-export of the `packed-seq` crate.
+pub use packed_seq;
+/// Re-export of the underlying SIMD type.
+pub use wide::u32x8;
+
 #[cfg(test)]
 mod test;
 
@@ -91,14 +96,12 @@ mod test;
 // mod anti_lex;
 // mod linearize;
 
-// Export a select few functions here.
-pub use collect::{collect, collect_and_dedup};
+use collect::collect_and_dedup_into;
 use itertools::Itertools;
 use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-pub use packed_seq;
 use packed_seq::{PackedSeq, Seq};
 
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
@@ -106,7 +109,7 @@ use packed_seq::{PackedSeq, Seq};
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 pub fn minimizer_positions<'s>(seq: PackedSeq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
     let head_tail = minimizers_seq_simd(seq, k, w);
-    collect_and_dedup::<false>(head_tail, out_vec);
+    collect_and_dedup_into::<false>(head_tail, out_vec);
 }
 
 /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
@@ -120,7 +123,7 @@ pub fn canonical_minimizer_positions<'s>(
     out_vec: &mut Vec<u32>,
 ) {
     let head_tail = canonical_minimizers_seq_simd(seq, k, w);
-    collect_and_dedup::<false>(head_tail, out_vec);
+    collect_and_dedup_into::<false>(head_tail, out_vec);
 }
 
 /// Deduplicated positions of all minimizers in the sequence, not using SIMD.

@@ -164,7 +164,7 @@ mod test {
                 let single = seq
                     .0
                     .windows(k)
-                    .map(|seq| hash_kmer::<false>(AsciiSeq::new(seq, k)))
+                    .map(|seq| hash_kmer::<false>(AsciiSeq(seq)))
                     .collect::<Vec<_>>();
                 let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
                 assert_eq!(single, scalar, "k={}, len={}", k, len);
@@ -306,7 +306,7 @@ mod test {
                 let single = seq
                     .0
                     .windows(k)
-                    .map(|seq| hash_kmer::<true>(AsciiSeq::new(seq, k)))
+                    .map(|seq| hash_kmer::<true>(AsciiSeq(seq)))
                     .collect::<Vec<_>>();
                 let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
                 assert_eq!(single, scalar, "k={}, len={}", k, len);

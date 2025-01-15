@@ -139,7 +139,6 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
 
 /// SIMD version. Takes a SIMD-iterator over 8 lanes of values and returns an iterator over 8 lanes of positions.
 /// Requires an `ExactSizeIterator` to determine the length of the input.
-#[allow(unused)]
 #[inline(always)]
 pub fn sliding_min_simd<const LEFT: bool>(
     it: impl ExactSizeIterator<Item = S>,

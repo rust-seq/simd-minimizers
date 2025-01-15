@@ -4,7 +4,7 @@ use std::mem::transmute;
 use packed_seq::{Seq, S};
 use wide::{i32x8, CmpGt};
 
-use crate::Captures;
+use crate::nthash::Captures;
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.

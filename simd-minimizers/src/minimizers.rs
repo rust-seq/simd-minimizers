@@ -1,7 +1,7 @@
 //! Find the (canonical) minimizers of a sequence.
 use std::iter::zip;
 
-use crate::{canonical, Captures};
+use crate::{canonical, nthash::Captures};
 
 use super::{
     canonical::canonical_mapper,
@@ -129,7 +129,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
 
 #[cfg(test)]
 mod test {
-    use crate::{collect, minimizers_collect_and_dedup};
+    use crate::{collect, minimizer_positions};
 
     use super::*;
     use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
@@ -148,9 +148,7 @@ mod test {
                     let single = seq.0[0..len]
                         .windows(w + k - 1)
                         .enumerate()
-                        .map(|(pos, seq)| {
-                            (pos + minimizer(AsciiSeq::new(seq, w + k - 1), k)) as u32
-                        })
+                        .map(|(pos, seq)| (pos + minimizer(AsciiSeq(seq), k)) as u32)
                         .collect::<Vec<_>>();
                     let scalar = minimizers_seq_scalar(seq, k, w).collect::<Vec<_>>();
                     assert_eq!(single, scalar, "k={k}, w={w}, len={len}");
@@ -235,7 +233,7 @@ mod test {
         for k in 1..10 {
             for w in 1..10 {
                 poss.clear();
-                minimizers_collect_and_dedup::<false>(seq.as_slice(), k, w, &mut poss);
+                minimizer_positions(seq.as_slice(), k, w, &mut poss);
                 for &x in &poss {
                     assert!(
                         x <= (n - k) as u32,

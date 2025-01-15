@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! A fast implementation of 'anti lexicographic' hashing:
 //! A kmer's hash is simply its bit representation, but with the first character inverted.
 //! When k > 16, only the last 16 characters are used.
@@ -114,7 +113,7 @@ mod test {
                 let single = seq
                     .0
                     .windows(k)
-                    .map(|seq| anti_lex_kmer(AsciiSeq::new(seq, k)))
+                    .map(|seq| anti_lex_kmer(AsciiSeq(seq)))
                     .collect::<Vec<_>>();
                 let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
                 assert_eq!(single, scalar, "k={}, len={}", k, len);

@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
-use simd_minimizers::{minimizers::*, nthash::hash_seq_simd, *};
+use simd_minimizers::{minimizers::*, nthash::hash_seq_simd};
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};
 

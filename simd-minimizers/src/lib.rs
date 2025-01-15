@@ -12,17 +12,20 @@
     )
 )]
 
+mod intrinsics;
+pub mod nthash;
+pub mod sliding_min;
+
 mod alex;
 mod canonical;
 pub mod collect;
 mod dedup;
-mod intrinsics;
 mod linearize;
 pub mod minimizer;
-pub mod nthash;
-mod sliding_min;
-
-pub use dedup::dedup;
 
 pub trait Captures<U> {}
 impl<T: ?Sized, U> Captures<U> for T {}
+
+// Export a select few functions here.
+pub use collect::{collect, collect_and_dedup};
+pub use wide::u32x8;

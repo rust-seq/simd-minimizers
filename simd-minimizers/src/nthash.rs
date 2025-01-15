@@ -150,6 +150,8 @@ pub fn hash_mapper<const RC: bool>(k: usize, w: usize) -> impl FnMut((S, S)) -> 
 
 #[cfg(test)]
 mod test {
+    use crate::collect;
+
     use super::*;
     use itertools::Itertools;
     use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec, L};
@@ -226,7 +228,7 @@ mod test {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
                 let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let parallel = hash_seq_simd::<false>(seq, k).collect::<Vec<_>>();
+                let parallel = collect(hash_seq_simd::<false>(seq, k, 1));
                 assert_eq!(scalar, parallel, "k={}, len={}", k, len);
             }
         }
@@ -243,7 +245,7 @@ mod test {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
                 let scalar = hash_seq_scalar::<false>(seq, k).collect::<Vec<_>>();
-                let parallel = hash_seq_simd::<false>(seq, k).collect::<Vec<_>>();
+                let parallel = collect(hash_seq_simd::<false>(seq, k, 1));
                 assert_eq!(scalar, parallel, "k={}, len={}", k, len);
             }
         }
@@ -349,7 +351,7 @@ mod test {
             for len in (0..100).chain([973, 1024]) {
                 let seq = seq.slice(0..len);
                 let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-                let simd = hash_seq_simd::<true>(seq, k).collect::<Vec<_>>();
+                let simd = collect(hash_seq_simd::<true>(seq, k, 1));
                 assert_eq!(scalar, simd, "k={}, len={}", k, len);
             }
         }

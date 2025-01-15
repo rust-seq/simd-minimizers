@@ -7,7 +7,6 @@
 
 use crate::{linearize, Captures};
 
-use super::collect_flat;
 use packed_seq::{Seq, S};
 
 pub fn alex_kmer_naive<'s>(seq: impl Seq<'s>) -> u32 {

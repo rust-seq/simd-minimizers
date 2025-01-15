@@ -2,10 +2,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
-use simd_minimizers::{
-    minimizer::*,
-    nthash::{nthash32_par_it, nthash32_simd_it},
-};
+use simd_minimizers::{minimizer::*, nthash::hash_seq_simd};
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};
 
@@ -267,20 +264,14 @@ fn local_nthash(c: &mut Criterion) {
     });
 
     let packed_text = PackedSeq { seq: packed_text, offset: 0, len: packed_text.len() * 4 };
-    g.bench_with_input("nthash_par_it_sum", &packed_text, |b, packed_text| {
-        b.iter(|| nthash32_par_it::<false>(*packed_text, k, 1).0.sum::<S>());
-    });
-    g.bench_with_input("nthash_par_it_vec", &packed_text, |b, packed_text| {
-        b.iter(|| nthash32_par_it::<false>(*packed_text, k, 1).0.collect_vec());
-    });
-    g.bench_with_input("nthash_par_it_sum_c", &packed_text, |b, packed_text| {
-        b.iter(|| nthash32_par_it::<true>(*packed_text, k, 1).0.sum::<S>());
+    g.bench_with_input("nthash_simd_it_sum", &packed_text, |b, packed_text| {
+        b.iter(|| hash_seq_simd::<false>(*packed_text, k, 1).0.sum::<S>());
     });
     g.bench_with_input("nthash_simd_it_vec", &packed_text, |b, packed_text| {
-        b.iter(|| nthash32_simd_it::<false>(*packed_text, k).collect_vec());
+        b.iter(|| hash_seq_simd::<false>(*packed_text, k, 1).0.collect_vec());
     });
-    g.bench_with_input("nthash_simd_it_sum", &packed_text, |b, packed_text| {
-        b.iter(|| nthash32_simd_it::<false>(*packed_text, k).sum::<u32>());
+    g.bench_with_input("nthash_simd_it_sum_c", &packed_text, |b, packed_text| {
+        b.iter(|| hash_seq_simd::<true>(*packed_text, k, 1).0.sum::<S>());
     });
 }
 

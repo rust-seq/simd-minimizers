@@ -6,7 +6,7 @@ use super::{
     canonical::canonical_mapper,
     collect::{collect, collect_and_dedup},
     dedup,
-    nthash::{nthash32_par_it, nthash32_scalar_it, nthash_mapper},
+    nthash::{hash_mapper, hash_seq_scalar, hash_seq_simd},
     sliding_min::{
         sliding_lr_min_mapper, sliding_lr_min_par_it, sliding_min_mapper, sliding_min_scalar_it,
     },
@@ -16,7 +16,7 @@ use packed_seq::{Seq, S};
 
 /// Returns the minimizer of a window using a naive linear scan.
 pub fn minimizer_window_naive<'s>(seq: impl Seq<'s>, k: usize) -> usize {
-    nthash32_scalar_it::<false>(seq, k)
+    hash_seq_scalar::<false>(seq, k)
         .map(|x| x & 0xffff_0000)
         .position_min()
         .unwrap()
@@ -32,8 +32,8 @@ pub fn minimizer_scalar_it<'s>(
     k: usize,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
-    let it = nthash32_scalar_it::<false>(seq, k);
-    sliding_min_scalar_it::<true>(it, w)
+    let it = hash_seq_scalar::<false>(seq, k);
+    sliding_min_scalar::<true>(it, w)
 }
 
 /// Returns an iterator over the absolute positions of the minimizers of a sequence.
@@ -72,7 +72,7 @@ pub fn minimizer_par_it<'s>(
 
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut nthash = nthash_mapper::<false>(k, w);
+    let mut nthash = hash_mapper::<false>(k, w);
     // let mut alex = alex::alex_mapper(k, w);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.size_hint().0);
 
@@ -125,7 +125,7 @@ pub fn canonical_minimizer_scalar_it<'s>(
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
     // true: canonical
-    let kmer_hashes = nthash32_scalar_it::<true>(seq, k);
+    let kmer_hashes = hash_seq_scalar::<true>(seq, k);
     // true: leftmost
     let left = sliding_min_scalar_it::<true>(kmer_hashes.clone(), w);
     // false: rightmost
@@ -151,7 +151,7 @@ pub fn canonical_minimizer_par_it<'s>(
     impl ExactSizeIterator<Item = S> + Captures<&'s ()>,
     impl ExactSizeIterator<Item = u32> + Captures<&'s ()>,
 ) {
-    let (kmer_hashes, kmer_hashes_tail) = nthash32_par_it::<true>(seq, k, w);
+    let (kmer_hashes, kmer_hashes_tail) = hash_seq_simd::<true>(seq, k, w);
     let lr_min = sliding_lr_min_par_it(kmer_hashes, w);
     let (canonical, canonical_tail) = canonical::canonical_par_it(seq, k, w);
     let head = zip(canonical, lr_min).map(
@@ -194,7 +194,7 @@ pub fn canonical_minimizer_par_it_new<'s>(
     // while canonical first drops the character.
     let (add_remove, tail) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
-    let mut nthash = nthash_mapper::<true>(k, w);
+    let mut nthash = hash_mapper::<true>(k, w);
     let mut canonical = canonical_mapper(k, w);
     let mut sliding_min = sliding_lr_min_mapper(w, add_remove.size_hint().0);
 

@@ -1,3 +1,4 @@
+//! Find the (canonical) minimizers of a sequence.
 use std::iter::zip;
 
 use crate::{canonical, Captures};

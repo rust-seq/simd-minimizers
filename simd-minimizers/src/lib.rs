@@ -1,5 +1,66 @@
+//! # `simd-minimizers` library
+//!
+//! Use the `minimizer_positions` and `canonical_minimizer_positions` functions here  to compute (canonical) minimizer positions.
+//! Adjacent equal positions are deduplicated, but since the canonical minimizer is not _forward_, a position could appear more than once.
+//! The `scalar` versions may be more efficient for short sequences
+//! Submodules are exported for testing and benchmarking purposes, but should not be considered part of the stable API.
+//!
+//! For the SIMD versions, input must be a packed sequence: `packed_seq::PackedSeq`.
+//! The scalar versions also accept plain ASCII `&[u8]` sequences that must only consist of `ACGTacgt` characters.
+//! If you want to use the SIMD version on `ACGTacgt` input, pack the sequence using `PackedSeq::new(seq)`.
+//!
+//! General ASCII alphabet is not supported, since ntHash relies on the 2-bit encoding.
+//!
+//! ## `packed-seq` overview
+//!
+//! The `packed-seq` crate provides the `Seq` trait that models a non-owned sequence of bases, like a `&[u8]` with `ACTGactg` values.
+//! It also has a `SeqVec` trait for owned variants.
+//!
+//! When dealing with ASCII input, use the `AsciiSeq` and `AsciiSeqVec` types.
+//!
+//! When dealing with packed sequences, use the `PackedSeq` and `PackedSeqVec` types.
+//!
+//!
+//! ## Examples
+//!
+//! ```
+//! // Scalar ASCII version.
+//! use packed_seq::{Seq, AsciiSeq};
+//! let seq = b"ACGTGCTCAGAGACTCAG";
+//! let ascii_seq = AsciiSeq(seq);
+//! let k = 5;
+//! let w = 7;
+//! let mut out_vec = Vec::new();
+//! simd_minimizers::minimizer_positions_scalar(ascii_seq, k, w, &mut out_vec);
+//! assert_eq!(out_vec, vec![0, 6, 8, 10, 12]);
+//! ```
+//!
+//! ```
+//! // Packed SIMD version.
+//! use packed_seq::{complement_char, PackedSeqVec, SeqVec};
+//! let seq = b"ACGTGCTCAGAGACTCAG";
+//! let k = 5;
+//! let w = 7;
+//!
+//! let packed_seq = PackedSeqVec::from_ascii(seq);
+//! let mut fwd_pos = Vec::new();
+//! // Unfortunately, `PackedSeqVec` can not `Deref` into a `PackedSeq`.
+//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut fwd_pos);
+//! assert_eq!(fwd_pos, vec![3, 5, 12]);
+//!
+//! // Check that reverse complement sequence has minimizers at 'reverse' positions.
+//! let rc_seq = seq.iter().rev().map(|&b| complement_char(b)).collect::<Vec<_>>();
+//! let rc_packed_seq = PackedSeqVec::from_ascii(&rc_seq);
+//! let mut rc_pos = Vec::new();
+//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), k, w, &mut rc_pos);
+//! assert_eq!(rc_pos, vec![1, 8, 10]);
+//! for (fwd, &rc) in std::iter::zip(fwd_pos, rc_pos.iter().rev()) {
+//!     assert_eq!(fwd as usize, seq.len() - k - rc as usize);
+//! }
+//! ```
 #![cfg_attr(
     not(any(
+        doc,
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
             target_feature = "avx2"

@@ -1,3 +1,4 @@
+//! Determine whether each window is canonical, when `#GT > #AC`.
 use std::mem::transmute;
 
 use packed_seq::{Seq, S};

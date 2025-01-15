@@ -1,12 +1,13 @@
-/// Sliding window minimum over windows of size `w`.
-/// For each window, the absolute position of the minimum is returned.
-///
-/// Each method takes a `LEFT: bool` const generic. Set to `true` to break ties
-/// towards the leftmost minimum, and false for the rightmost minimum.
-///
-/// All these methods take 32 bit input values, **but they only use the upper 16 bits!**
-///
-/// Positions ar
+//! Sliding window minimum over windows of size `w`.
+//!
+//! For each window, the absolute position of the minimum is returned.
+//!
+//! Each method takes a `LEFT: bool` const generic. Set to `true` to break ties
+//! towards the leftmost minimum, and false for the rightmost minimum.
+//!
+//! All these methods take 32 bit input values, **but they only use the upper 16 bits!**
+//!
+//! Positions ar
 use core::array::from_fn;
 use packed_seq::S;
 use std::hint::assert_unchecked;

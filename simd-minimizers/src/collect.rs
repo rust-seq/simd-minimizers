@@ -1,3 +1,4 @@
+//! Collect (and dedup) SIMD-iterator values into a flat `Vec<u32>`.
 use std::{
     array::{self, from_fn},
     cell::RefCell,

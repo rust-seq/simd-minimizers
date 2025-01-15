@@ -1,19 +1,10 @@
-//! A fast implementation of ntHash.
-//! Input:
-//! - A 2-bit packed DNA sequence, only ACGT.
-//! - It's length in bp.
-//! - The k-mer length k.
-//!
-//! Output:
-//! - An iterator over all 32-hashes of all k-mers in the sequence.
-
-// TODO: Write about 2bit encoded packed represenatation.
-
-use crate::Captures;
-
+//! NtHash the kmers in a sequence.
 use super::intrinsics;
 use packed_seq::complement_base;
 use packed_seq::{Seq, S};
+
+pub trait Captures<U> {}
+impl<T: ?Sized, U> Captures<U> for T {}
 
 /// Original ntHash seed values.
 // TODO: Update to guarantee unique hash values for k<=16?

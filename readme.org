@@ -2,4 +2,25 @@
 
 See =./simd-minimizers= for the main crate.
 
-=./simd-minimizers-bench= contains benchmarks used in [[https://curiouscoding.nl/posts/fast-minimizers/][this blogpost]] and the WIP paper.
+Usage example:
+#+begin_src rust
+// Packed SIMD version.
+use packed_seq::{complement_char, PackedSeqVec, SeqVec};
+let seq = b"ACGTGCTCAGAGACTCAG";
+let k = 5;
+let w = 7;
+
+let packed_seq = PackedSeqVec::from_ascii(seq);
+let mut minimizer_positions = Vec::new();
+simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut minimizer_positions);
+assert_eq!(minimizer_positions, vec![3, 5, 12]);
+#+end_src
+
+** Benchmarks
+
+=simd-minimizers-bench/benches/bench.rs= contains benchmarks used in [[https://curiouscoding.nl/posts/fast-minimizers/][this blogpost]].
+
+=simd-minimizers-bench/src/bin/paper.rs= contains benchmarks used in the paper.
+
+To replicate results from the paper, go into =simd-minimizers-bench= and do
+=cargo run --release= followed by =python eval.py=.

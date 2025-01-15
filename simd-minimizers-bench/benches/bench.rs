@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
-use simd_minimizers::{minimizer::*, nthash::hash_seq_simd};
+use simd_minimizers::{minimizer::*, nthash::hash_seq_simd, *};
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};
 
@@ -370,12 +370,12 @@ fn simd_minimizer(c: &mut Criterion) {
         g.bench_function(BenchmarkId::new("minimizer_par_it_vec", len), |b| {
             let mut vec = Vec::new();
             b.iter(|| {
-                vec.extend(minimizer_par_it(packed_seq, k, w).0);
+                vec.extend(minimizers_seq_simd(packed_seq, k, w).0);
                 black_box(&mut vec).clear();
             });
         });
         g.bench_function(BenchmarkId::new("minimizer_par_it_sum", len), |b| {
-            b.iter(|| black_box(minimizer_par_it(packed_seq, k, w).0.sum::<S>()));
+            b.iter(|| black_box(minimizers_seq_simd(packed_seq, k, w).0.sum::<S>()));
         });
         g.bench_function(BenchmarkId::new("minimizer_collect", len), |b| {
             b.iter(|| black_box(minimizers_collect(packed_seq, k, w)));
@@ -405,7 +405,7 @@ fn simd_minimizer(c: &mut Criterion) {
         g.bench_function(BenchmarkId::new("minimizer_canonical", len), |b| {
             let mut vec = Vec::new();
             b.iter(|| {
-                vec.extend(canonical_minimizer_par_it(packed_seq, k, w).0);
+                vec.extend(canonical_minimizers_seq_simd(packed_seq, k, w).0);
                 black_box(&mut vec).clear();
             });
         });
@@ -416,29 +416,12 @@ fn simd_minimizer(c: &mut Criterion) {
                 black_box(&mut vec).clear();
             });
         });
-        g.bench_function(BenchmarkId::new("minimizer_canonical_new", len), |b| {
-            let mut vec = Vec::new();
-            b.iter(|| {
-                vec.extend(canonical_minimizer_par_it_new(packed_seq, k, w).0);
-                black_box(&mut vec).clear();
-            });
-        });
         g.bench_function(
-            BenchmarkId::new("minimizer_canonical_dedup_new", len),
+            BenchmarkId::new("minimizer_canonical_dedup__super", len),
             |b| {
                 let mut vec = Vec::new();
                 b.iter(|| {
-                    canonical_minimizer_collect_and_dedup_new::<false>(packed_seq, k, w, &mut vec);
-                    black_box(&mut vec).clear();
-                });
-            },
-        );
-        g.bench_function(
-            BenchmarkId::new("minimizer_canonical_dedup_new_super", len),
-            |b| {
-                let mut vec = Vec::new();
-                b.iter(|| {
-                    canonical_minimizer_collect_and_dedup_new::<true>(packed_seq, k, w, &mut vec);
+                    canonical_minimizer_collect_and_dedup::<true>(packed_seq, k, w, &mut vec);
                     black_box(&mut vec).clear();
                 });
             },
@@ -488,12 +471,7 @@ fn human_genome(c: &mut Criterion) {
         }
         let mut vec = Vec::new();
         b.iter(|| {
-            canonical_minimizer_collect_and_dedup_new::<true>(
-                packed_text.as_slice(),
-                k,
-                w,
-                &mut vec,
-            );
+            canonical_minimizer_collect_and_dedup::<true>(packed_text.as_slice(), k, w, &mut vec);
             black_box(&mut vec).clear();
         });
     });

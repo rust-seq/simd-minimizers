@@ -1,9 +1,6 @@
 use std::iter::zip;
 
-use crate::{
-    simd::{canonical, linearize},
-    Captures,
-};
+use crate::{canonical, linearize, Captures};
 
 use super::{
     canonical::canonical_mapper,

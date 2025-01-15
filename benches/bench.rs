@@ -3,7 +3,7 @@
 mod blog;
 use blog::*;
 use itertools::Itertools;
-use minimizers::simd::{
+use minimizers::{
     minimizer::*,
     nthash::{nthash32_par_it, nthash32_simd_it},
 };

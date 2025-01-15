@@ -72,7 +72,7 @@ pub fn sliding_min_scalar<const LEFT: bool>(
         "sliding_min is not tested for windows of length > 2^15."
     );
     assert!(
-        it.size_hint().0 < (1 << 32),
+        it.len() < (1 << 32),
         "sliding_min returns 32bit indices. Try splitting the input into 4GB chunks first."
     );
     let mut prefix_min = u32::MAX;
@@ -145,7 +145,7 @@ pub fn sliding_min_simd<const LEFT: bool>(
     w: usize,
     k: usize,
 ) -> impl ExactSizeIterator<Item = S> {
-    let len = it.size_hint().0;
+    let len = it.len();
     let mut it = it.map(sliding_min_mapper::<LEFT>(w, k, len));
     // This optimizes better than it.skip(w-1).
     it.by_ref().take(w - 1).for_each(drop);
@@ -238,7 +238,7 @@ pub fn sliding_lr_min_simd(
     it: impl ExactSizeIterator<Item = S>,
     w: usize,
 ) -> impl ExactSizeIterator<Item = (S, S)> {
-    let len = it.size_hint().0;
+    let len = it.len();
     let mut it = it.map(sliding_lr_min_mapper(w, len));
     // This optimizes better than it.skip(w-1).
     it.by_ref().take(w - 1).for_each(drop);

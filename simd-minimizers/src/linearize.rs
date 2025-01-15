@@ -123,7 +123,7 @@ impl<
     /// Fill a buffer with NT hash values by using `nthash32_par_it`.
     fn buffer_chunk(&mut self, mut offset: usize, seq: BI) {
         let (mut par_it, mut tail) = (self.par_it)(seq);
-        self.cache.resize(par_it.size_hint().0, S::splat(0));
+        self.cache.resize(par_it.len(), S::splat(0));
         if !OFFSET {
             offset = 0;
         }
@@ -134,7 +134,7 @@ impl<
             }
         }
         let offset = offset as u32;
-        self.tail_cache.resize(tail.size_hint().0, 0);
+        self.tail_cache.resize(tail.len(), 0);
         for i in 0..self.tail_cache.len() {
             unsafe {
                 *self.tail_cache.get_unchecked_mut(i) = tail.next().unwrap() + offset;

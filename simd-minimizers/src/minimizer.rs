@@ -74,7 +74,7 @@ pub fn minimizer_par_it<'s>(
 
     let mut nthash = hash_mapper::<false>(k, w);
     // let mut alex = alex::alex_mapper(k, w);
-    let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.size_hint().0);
+    let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
         let nthash = nthash((a, rk));
@@ -84,7 +84,7 @@ pub fn minimizer_par_it<'s>(
     });
 
     head.by_ref().take(l - 1).for_each(drop);
-    let head_len = head.size_hint().0;
+    let head_len = head.len();
 
     let tail = minimizer_scalar_it(tail, k, w).map(move |p| p + 8 * head_len as u32);
     (head, tail)
@@ -196,7 +196,7 @@ pub fn canonical_minimizer_par_it_new<'s>(
 
     let mut nthash = hash_mapper::<true>(k, w);
     let mut canonical = canonical_mapper(k, w);
-    let mut sliding_min = sliding_lr_min_mapper(w, add_remove.size_hint().0);
+    let mut sliding_min = sliding_lr_min_mapper(w, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk, rl)| {
         let nthash = nthash((a, rk));

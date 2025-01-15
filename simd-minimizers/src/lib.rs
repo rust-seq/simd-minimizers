@@ -84,6 +84,9 @@ pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
+#[cfg(test)]
+mod test;
+
 // TODO: Old and in-development modules.
 // mod anti_lex;
 // mod linearize;

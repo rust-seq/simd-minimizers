@@ -24,15 +24,16 @@ pub fn canonical_windows_seq_scalar<'s>(
     let remove = seq.iter_bp();
 
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
-    let mut cnt = -(l as isize) / 2;
+    let mut cnt = -(l as isize);
 
     add.by_ref().take(l - 1).for_each(|a| {
-        cnt += a as isize & 1;
+        cnt += a as isize & 2;
     });
     add.zip(remove).map(move |(a, r)| {
-        cnt += a as isize & 1;
-        cnt -= r as isize & 1;
-        cnt > 0
+        cnt += a as isize & 2;
+        let is_canonical = cnt > 0;
+        cnt -= r as isize & 2;
+        is_canonical
     })
 }
 
@@ -52,11 +53,6 @@ pub fn canonical_windows_seq_simd<'s>(
     impl ExactSizeIterator<Item = bool> + Captures<&'s ()>,
 ) {
     let l = k + w - 1;
-    assert!(
-        l % 2 == 1,
-        "Window length {l}={k}+{w}-1 must be odd to guarantee canonicality"
-    );
-
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, l - 1);
 
     let mut head = add_remove.map(canonical_mapper(k, w));

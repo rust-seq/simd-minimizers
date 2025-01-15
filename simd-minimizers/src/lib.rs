@@ -21,7 +21,7 @@ mod canonical;
 pub mod collect;
 mod dedup;
 mod linearize;
-pub mod minimizer;
+pub mod minimizers;
 
 pub trait Captures<U> {}
 impl<T: ?Sized, U> Captures<U> for T {}
@@ -31,7 +31,7 @@ pub use collect::{collect, collect_and_dedup};
 pub use wide::u32x8;
 
 // TODO
-use minimizer::*;
+use minimizers::*;
 use packed_seq::Seq;
 pub fn minimizers_collect<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
     let head_tail = minimizers_seq_simd(seq, k, w);

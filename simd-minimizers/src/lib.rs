@@ -23,49 +23,65 @@ pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
-mod anti_lex;
-mod linearize;
-
-pub trait Captures<U> {}
-impl<T: ?Sized, U> Captures<U> for T {}
+// TODO: Old and in-development modules.
+// mod anti_lex;
+// mod linearize;
 
 // Export a select few functions here.
 pub use collect::{collect, collect_and_dedup};
-pub use wide::u32x8;
+use itertools::Itertools;
+use minimizers::{
+    canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
+    minimizers_seq_simd,
+};
+pub use packed_seq;
+use packed_seq::{PackedSeq, Seq};
 
-// TODO
-use minimizers::*;
-use packed_seq::Seq;
-pub fn minimizers_collect<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
+/// Deduplicated positions of all minimizers in the sequence, using SIMD.
+///
+/// Positions are appended to a reusable `out_vec` to avoid allocations.
+pub fn minimizer_positions<'s>(seq: PackedSeq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
     let head_tail = minimizers_seq_simd(seq, k, w);
-    collect(head_tail)
+    collect_and_dedup::<false>(head_tail, out_vec);
 }
 
-/// Prefer `minimizers_collect_and_dedup`
-#[doc(hidden)]
-pub fn minimizers_dedup<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
-    let head_tail = minimizers_seq_simd(seq, k, w);
-    let mut positions = collect(head_tail);
-    dedup::dedup_vec(&mut positions);
-    positions
-}
-
-pub fn minimizers_collect_and_dedup<'s, const SUPER: bool>(
-    seq: impl Seq<'s>,
-    k: usize,
-    w: usize,
-    out_vec: &mut Vec<u32>,
-) {
-    let head_tail = minimizers_seq_simd(seq, k, w);
-    collect_and_dedup::<SUPER>(head_tail, out_vec);
-}
-
-pub fn canonical_minimizer_collect_and_dedup<'s, const SUPER: bool>(
-    seq: impl Seq<'s>,
+/// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
+///
+/// Positions are appended to a reusable `out_vec` to avoid allocations.
+/// l=w+k-1 must be odd to determine the strand of each window.
+pub fn canonical_minimizer_positions<'s>(
+    seq: PackedSeq<'s>,
     k: usize,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
     let head_tail = canonical_minimizers_seq_simd(seq, k, w);
-    collect_and_dedup::<SUPER>(head_tail, out_vec);
+    collect_and_dedup::<false>(head_tail, out_vec);
+}
+
+/// Deduplicated positions of all minimizers in the sequence, not using SIMD.
+///
+/// Positions are appended to a reusable `out_vec` to avoid allocations.
+/// This scalar version can be faster for sequences known to be short.
+pub fn minimizer_positions_scalar<'s>(
+    seq: impl Seq<'s>,
+    k: usize,
+    w: usize,
+    out_vec: &mut Vec<u32>,
+) {
+    out_vec.extend(minimizers_seq_scalar(seq, k, w).dedup());
+}
+
+/// Deduplicated positions of all canonical minimizers in the sequence, not using SIMD.
+///
+/// Positions are appended to a reusable `out_vec` to avoid allocations.
+/// l=w+k-1 must be odd to determine the strand of each window.
+/// This scalar version can be faster for sequences known to be short.
+pub fn canonical_minimizer_positions_scalar<'s>(
+    seq: impl Seq<'s>,
+    k: usize,
+    w: usize,
+    out_vec: &mut Vec<u32>,
+) {
+    out_vec.extend(canonical_minimizers_seq_scalar(seq, k, w).dedup());
 }

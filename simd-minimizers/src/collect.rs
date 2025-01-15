@@ -9,12 +9,15 @@ use wide::u32x8;
 
 use super::dedup::write_unique_with_old_distinct_vals;
 
-/// Collect a parallel stream into a single vector.
-/// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
+/// Collect a SIMD-iterator into a single flat vector.
+/// Works by taking 8 elements from each stream, and transposing this SIMD-matrix before writing out the results.
+/// The `tail` is appended at the end.
 #[inline(always)]
 pub fn collect(
-    par_head: impl ExactSizeIterator<Item = S>,
-    tail: impl ExactSizeIterator<Item = u32>,
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
 ) -> Vec<u32> {
     let len = par_head.len();
     let mut v = vec![0; len * 8 + tail.len()];
@@ -59,17 +62,19 @@ thread_local! {
     static CACHE: RefCell<[Vec<u32>; 8]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
-/// Collect a parallel stream into a single vector.
+/// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
 /// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
 ///
-/// By default (when `SUPER` is false), the output is simply the 32 bit positions of all distinct minimizers.
-/// When `SUPER` is true, each u32 is a tuple of `(u16,16)` where the low bits are the position of the minimizer,
+/// By default (when `SUPER` is false), the output is simply the deduplicated input values.
+/// When `SUPER` is true, each returned `u32` is a tuple of `(u16,16)` where the low bits are those of the input value,
 /// and the high bits are the index of the stream it first appeared, i.e., the start of its super-k-mer.
-/// These positions are mod 2^16. When the window length is <2^16, this is sufficient to recover full positions.
+/// These positions are mod 2^16. When the window length is <2^16, this is sufficient to recover full super-k-mers.
 #[inline(always)]
 pub fn collect_and_dedup<const SUPER: bool>(
-    par_head: impl ExactSizeIterator<Item = S>,
-    tail: impl ExactSizeIterator<Item = u32>,
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
     out_vec: &mut Vec<u32>,
 ) {
     let len = par_head.len();
@@ -78,7 +83,6 @@ pub fn collect_and_dedup<const SUPER: bool>(
         for x in v.iter_mut() {
             x.resize(len, 0);
         }
-        // let mut v: [Vec<u32>; 8] = array::from_fn(|_| vec![0; len]);
 
         let mut write_idx = [0; 8];
         // Vec of last pushed elements in each lane.

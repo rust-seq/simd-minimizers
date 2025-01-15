@@ -9,7 +9,8 @@ use crate::{linearize, Captures};
 
 use packed_seq::{Seq, S};
 
-pub fn alex_kmer_naive<'s>(seq: impl Seq<'s>) -> u32 {
+/// Naively compute the 32-bit anti-lex hash of a single k-mer.
+pub fn anti_lex_kmer<'s>(seq: impl Seq<'s>) -> u32 {
     let k = seq.len();
     let mut hfw: u32 = 0;
     let anti = if k <= 16 { 3 << (2 * k - 2) } else { 3 << 30 };
@@ -19,7 +20,9 @@ pub fn alex_kmer_naive<'s>(seq: impl Seq<'s>) -> u32 {
     hfw ^ anti
 }
 
-pub fn alex_scalar_it<'s>(
+/// Returns a scalar iterator over the 32-bit anti-lex hashes of all k-mers in the sequence.
+/// Prefer `anti_lex_seq_simd`.
+pub fn anti_lex_seq_scalar<'s>(
     seq: impl Seq<'s>,
     k: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
@@ -37,14 +40,10 @@ pub fn alex_scalar_it<'s>(
     })
 }
 
-pub fn alex_simd_it<'s>(
-    seq: impl Seq<'s>,
-    k: usize,
-) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
-    linearize::linearize(seq, k, move |seq| alex_par_it(seq, k, 1))
-}
-
-pub fn alex_par_it<'s>(
+/// Returns a simd-iterator over the 8 chunks 32-bit anti-lex hashes of all k-mers in the sequence.
+/// The tail is returned separately.
+/// Returned chunks overlap by w-1 hashes. Set w=1 for non-overlapping chunks.
+pub fn anti_lex_seq_simd<'s>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
@@ -70,13 +69,15 @@ pub fn alex_par_it<'s>(
         h_fw ^ anti
     });
 
-    let tail = alex_scalar_it(tail, k);
+    let tail = anti_lex_seq_scalar(tail, k);
 
     (it, tail)
 }
 
-/// NOTE: First k-1 values are bogus.
-pub fn alex_mapper(k: usize, w: usize) -> impl FnMut(S) -> S + Clone {
+/// A function that 'eats' added and removed bases, and returns the updated hash.
+/// The distance between them must be k-1, and the first k-1 removed bases must be 0.
+/// The first k-1 returned values will be useless.
+pub fn anti_lex_mapper(k: usize, w: usize) -> impl FnMut(S) -> S + Clone {
     assert!(k > 0);
     assert!(w > 0);
 
@@ -93,6 +94,8 @@ pub fn alex_mapper(k: usize, w: usize) -> impl FnMut(S) -> S + Clone {
 
 #[cfg(test)]
 mod test {
+    use crate::collect;
+
     use super::*;
     use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec, L};
     use std::{cell::LazyCell, iter::once};
@@ -111,9 +114,9 @@ mod test {
                 let single = seq
                     .0
                     .windows(k)
-                    .map(|seq| alex_kmer_naive(AsciiSeq::new(seq, k)))
+                    .map(|seq| anti_lex_kmer(AsciiSeq::new(seq, k)))
                     .collect::<Vec<_>>();
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
                 assert_eq!(single, scalar, "k={}, len={}", k, len);
             }
         }
@@ -127,8 +130,8 @@ mod test {
         ] {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
-                let parallel = alex_simd_it(seq, k).collect::<Vec<_>>();
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
+                let parallel = collect(anti_lex_seq_simd(seq, k, 1));
                 assert_eq!(scalar, parallel, "k={}, len={}", k, len);
             }
         }
@@ -142,8 +145,8 @@ mod test {
         ] {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
-                let parallel = alex_simd_it(seq, k).collect::<Vec<_>>();
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
+                let parallel = collect(anti_lex_seq_simd(seq, k, 1));
                 assert_eq!(scalar, parallel, "k={}, len={}", k, len);
             }
         }
@@ -157,8 +160,8 @@ mod test {
         ] {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = alex_par_it(seq, k, 1);
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
+                let (par_head, tail) = anti_lex_seq_simd(seq, k, 1);
                 let par_head = par_head.collect::<Vec<_>>();
                 let parallel_iter = (0..L)
                     .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
@@ -178,8 +181,8 @@ mod test {
         ] {
             for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
-                let (par_head, tail) = alex_par_it(seq, k, 1);
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
+                let (par_head, tail) = anti_lex_seq_simd(seq, k, 1);
                 let par_head = par_head.collect::<Vec<_>>();
                 let parallel_iter = (0..L)
                     .flat_map(|l| par_head.iter().map(move |x| x.as_array_ref()[l]))
@@ -198,8 +201,8 @@ mod test {
         ] {
             for len in (0..100).chain([973, 1024]) {
                 let seq = seq.slice(0..len);
-                let scalar = alex_scalar_it(seq, k).collect::<Vec<_>>();
-                let simd = alex_simd_it(seq, k).collect::<Vec<_>>();
+                let scalar = anti_lex_seq_scalar(seq, k).collect::<Vec<_>>();
+                let simd = collect(anti_lex_seq_simd(seq, k, 1));
                 assert_eq!(scalar, simd, "k={}, len={}", k, len);
             }
         }

@@ -1,6 +1,6 @@
 use std::{arch::x86_64::__m256i, mem::transmute};
 
-const WIDTH: usize = 256 / 32;
+const L: usize = 256 / 32;
 
 // Slightly modified dedup based on the version of Daniel Lemire's blog.
 // https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/
@@ -11,7 +11,7 @@ const WIDTH: usize = 256 / 32;
 // we simply do an unaligned read shifted by one value.
 // This causes some issues when the first value of that read was overwritten already,
 // and so we do this read one iteration ahead, as `nextprev`.
-pub fn dedup(v: &mut Vec<u32>) {
+pub fn dedup_vec(v: &mut Vec<u32>) {
     unsafe {
         use std::arch::x86_64::*;
         if v.is_empty() {
@@ -21,14 +21,13 @@ pub fn dedup(v: &mut Vec<u32>) {
         let mut read_idx = 1;
 
         let mut prev = _mm256_loadu_si256(v.as_ptr().add(read_idx - 1) as *const __m256i);
-        while read_idx + 2 * WIDTH - 1 <= v.len() {
+        while read_idx + 2 * L - 1 <= v.len() {
             // The next prev is read one iteration early to avoid reading data that was just modified.
-            let nextprev =
-                _mm256_loadu_si256(v.as_ptr().add(read_idx - 1 + WIDTH) as *const __m256i);
+            let nextprev = _mm256_loadu_si256(v.as_ptr().add(read_idx - 1 + L) as *const __m256i);
             let new = _mm256_loadu_si256(v.as_ptr().add(read_idx) as *const __m256i);
             write_unique_with_prev(prev, new, v, &mut write_idx);
             prev = nextprev;
-            read_idx += WIDTH;
+            read_idx += L;
         }
         let mut oldv = v[write_idx - 1];
         while read_idx < v.len() {
@@ -48,7 +47,7 @@ fn write_unique_with_prev(prev: __m256i, new: __m256i, v: &mut [u32], write_idx:
     unsafe {
         use std::arch::x86_64::*;
         let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(prev, new))) as usize;
-        let numberofnewvalues = WIDTH - m.count_ones() as usize;
+        let numberofnewvalues = L - m.count_ones() as usize;
         let key = UNIQSHUF[m];
         let val = _mm256_permutevar8x32_epi32(new, key);
         _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
@@ -56,16 +55,10 @@ fn write_unique_with_prev(prev: __m256i, new: __m256i, v: &mut [u32], write_idx:
     }
 }
 
-#[allow(unused)]
+/// Dedup adjacent `new` values (starting with the last element of `old`).
+/// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
 #[inline(always)]
-pub fn write_unique_with_old(old: __m256i, new: __m256i, v: &mut [u32], write_idx: &mut usize) {
-    write_unique_with_old_distinct_vals(old, new, new, v, write_idx);
-}
-
-/// Compare adjacent `new` values (starting with the last element of `old`), and
-/// if an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
-#[inline(always)]
-pub fn write_unique_with_old_distinct_vals(
+pub fn append_unique_vals(
     old: __m256i,
     new: __m256i,
     vals: __m256i,
@@ -80,7 +73,7 @@ pub fn write_unique_with_old_distinct_vals(
         let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
 
         let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
-        let numberofnewvalues = WIDTH - m.count_ones() as usize;
+        let numberofnewvalues = L - m.count_ones() as usize;
         let key = UNIQSHUF[m];
         let val = _mm256_permutevar8x32_epi32(vals, key);
         _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
@@ -107,7 +100,7 @@ mod test {
 
             let mut v3 = v.clone();
             let start = Instant::now();
-            super::dedup(&mut v3);
+            super::dedup_vec(&mut v3);
             eprintln!("dedup_new {} in {:?}", max, start.elapsed());
             assert_eq!(v2, v3, "Failure for\n      : {v:?}");
         }

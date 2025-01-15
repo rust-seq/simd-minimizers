@@ -13,6 +13,7 @@
 )]
 
 mod intrinsics;
+pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
@@ -21,7 +22,6 @@ mod canonical;
 pub mod collect;
 mod dedup;
 mod linearize;
-pub mod minimizers;
 
 pub trait Captures<U> {}
 impl<T: ?Sized, U> Captures<U> for T {}
@@ -43,7 +43,7 @@ pub fn minimizers_collect<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32>
 pub fn minimizers_dedup<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
     let head_tail = minimizers_seq_simd(seq, k, w);
     let mut positions = collect(head_tail);
-    dedup::dedup(&mut positions);
+    dedup::dedup_vec(&mut positions);
     positions
 }
 

@@ -7,7 +7,7 @@ use std::{
 use packed_seq::S;
 use wide::u32x8;
 
-use super::dedup::write_unique_with_old_distinct_vals;
+use super::dedup::append_unique_vals;
 
 /// Collect a SIMD-iterator into a single flat vector.
 /// Works by taking 8 elements from each stream, and transposing this SIMD-matrix before writing out the results.
@@ -110,7 +110,7 @@ pub fn collect_and_dedup<const SUPER: bool>(
                         lane
                     };
                     unsafe {
-                        write_unique_with_old_distinct_vals(
+                        append_unique_vals(
                             old[j],
                             transmute(lane),
                             transmute(vals),

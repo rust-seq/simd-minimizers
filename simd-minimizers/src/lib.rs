@@ -23,7 +23,7 @@ pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
-mod alex;
+mod anti_lex;
 mod linearize;
 
 pub trait Captures<U> {}

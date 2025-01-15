@@ -50,14 +50,11 @@ pub fn minimizers_seq_simd<'s>(
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
     let mut nthash = hash_mapper::<false>(k, w);
-    // let mut alex = alex::alex_mapper(k, w);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
         let nthash = nthash((a, rk));
         sliding_min(nthash)
-        // let alex = alex(a);
-        // sliding_min(alex)
     });
 
     head.by_ref().take(l - 1).for_each(drop);
@@ -106,8 +103,8 @@ pub fn canonical_minimizers_seq_simd<'s>(
 ) {
     let l = k + w - 1;
 
-    // FIXME: NtHash takes the return value *before* dropping the given character,
-    // while canonical first drops the character.
+    // TODO: NtHash takes the return value *before* dropping the given character so has k-1,
+    // while canonical first drops the character, so has l without -1.
     let (add_remove, tail) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
     let mut nthash = hash_mapper::<true>(k, w);
@@ -133,13 +130,14 @@ mod test {
 
     use super::*;
     use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
-    use std::{cell::LazyCell, iter::once};
+    use std::{iter::once, sync::LazyLock};
 
-    const ASCII_SEQ: LazyCell<AsciiSeqVec> = LazyCell::new(|| AsciiSeqVec::random(1024 * 1024));
-    const PACKED_SEQ: LazyCell<PackedSeqVec> = LazyCell::new(|| PackedSeqVec::random(1024 * 1024));
+    static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024 * 1024));
+    static PACKED_SEQ: LazyLock<PackedSeqVec> =
+        LazyLock::new(|| PackedSeqVec::from_ascii(&ASCII_SEQ.seq));
 
     #[test]
-    fn minimizers() {
+    fn minimizers_fwd() {
         let ascii_seq = &*ASCII_SEQ;
         let packed_seq = &*PACKED_SEQ;
         for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
@@ -160,8 +158,34 @@ mod test {
                     let simd_packed = collect(minimizers_seq_simd(packed_seq, k, w));
 
                     assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
-                    assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
                     assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
+                    assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn minimizers_canonical() {
+        let ascii_seq = &*ASCII_SEQ;
+        let packed_seq = &*PACKED_SEQ;
+        for k in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
+            for w in [1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65] {
+                if (k + w - 1) % 2 != 1 {
+                    continue;
+                }
+                for len in (0..100).chain(once(1024 * 32)) {
+                    let ascii_seq = ascii_seq.slice(0..len);
+                    let packed_seq = packed_seq.slice(0..len);
+
+                    let scalar_ascii =
+                        canonical_minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
+                    let scalar_packed =
+                        canonical_minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
+                    let simd_packed = collect(canonical_minimizers_seq_simd(packed_seq, k, w));
+
+                    assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+                    assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
                 }
             }
         }

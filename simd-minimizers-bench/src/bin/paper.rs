@@ -111,6 +111,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
 
         time("fwd-collect", params, || {
+            v2.clear();
             simd_minimizers::collect::collect_into(
                 simd_minimizers::minimizers::minimizers_seq_simd(packed_seq, k, w),
                 v2,
@@ -118,11 +119,12 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         v2.clear();
         time("fwd-dedup", params, || {
+            v2.clear();
             simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
         });
         v2.clear();
 
-        time_v(v, "canonical nthash", params, || {
+        time_v(v, "canonical-nthash", params, || {
             // Inline minimizers_seq_simd.
             let add_remove = packed_seq.par_iter_bp_delayed(k + w - 1, k - 1).0;
             // True instead of default false here.
@@ -130,11 +132,12 @@ fn bench_minimizers(w: usize, k: usize) {
             let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
             add_remove.map(move |(a, rk)| sliding_min(nthash((a, rk))))
         });
-        time_v(v, "canonical strand", params, || {
+        time_v(v, "canonical-strand", params, || {
             simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w).0
         });
 
         time("canonical-collect", params, || {
+            v2.clear();
             simd_minimizers::collect::collect_into(
                 simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w),
                 v2,
@@ -142,6 +145,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         v2.clear();
         time("canonical-dedup", params, || {
+            v2.clear();
             simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
         });
         v2.clear();
@@ -153,10 +157,12 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         eprintln!("\nFinal functions\n");
         time("simd-minimizer", params, || {
+            v2.clear();
             simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
         });
         v2.clear();
         time("canonical simd-minimizer", params, || {
+            v2.clear();
             simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
         });
         v2.clear();
@@ -165,10 +171,12 @@ fn bench_minimizers(w: usize, k: usize) {
     if false {
         eprintln!("\nSCALAR\n");
         time("positions scalar", params, || {
+            v2.clear();
             simd_minimizers::minimizer_positions_scalar(packed_seq, k, w, v2);
         });
         v2.clear();
         time("canonical positions scalar", params, || {
+            v2.clear();
             simd_minimizers::canonical_minimizer_positions_scalar(packed_seq, k, w, v2);
         });
         v2.clear();
@@ -195,6 +203,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         v2.clear();
         time("rescan-daniel", params, || {
+            v2.clear();
             minimizers_callback::<true>(plain_seq, k + w - 1, k, |pos| {
                 v2.push(pos as u32);
             });
@@ -255,24 +264,28 @@ fn time_v<T: std::iter::Sum, I: Iterator<Item = T>>(
     params: Params,
     mut f: impl FnMut() -> I + Clone,
 ) {
-    v.clear();
-    time(&format!("{name}"), params, || v.extend(f()));
+    time(&format!("{name}"), params, || {
+        v.clear();
+        v.extend(f())
+    });
     v.clear();
 }
 
 fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
-    let start = std::time::Instant::now();
-    black_box(f());
-    let elapsed = start.elapsed().as_secs_f64() * 1_000_000_000. / params.n as f64;
-    println!("{name:<20}: {:6.2} ns/elem", elapsed);
-    RESULTS.with(|r| {
-        r.borrow_mut().push(Result {
-            experiment: EXPERIMENT.with(|e| e.borrow().clone()),
-            name: name.to_string(),
-            n: params.n,
-            k: params.k,
-            w: params.w,
-            time: elapsed,
-        })
-    });
+    for _ in 0..5 {
+        let start = std::time::Instant::now();
+        black_box(f());
+        let elapsed = start.elapsed().as_secs_f64() * 1_000_000_000. / params.n as f64;
+        println!("{name:<20}: {:6.2} ns/elem", elapsed);
+        RESULTS.with(|r| {
+            r.borrow_mut().push(Result {
+                experiment: EXPERIMENT.with(|e| e.borrow().clone()),
+                name: name.to_string(),
+                n: params.n,
+                k: params.k,
+                w: params.w,
+                time: elapsed,
+            })
+        });
+    }
 }

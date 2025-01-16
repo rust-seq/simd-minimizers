@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import pandas as pd
 from pathlib import Path
 import tabulate
@@ -21,12 +22,13 @@ print(tabulate.tabulate(DF, headers=DF.columns, tablefmt="orgtbl", floatfmt=".2f
 
 # Incremental table
 df = DF[(DF["experiment"] == "incremental") & (DF.w == 11)][["name", "time"]]
+df = df.pivot_table(index='name', values='time', aggfunc='median', sort=False)
 print(tabulate.tabulate(df, headers=df.columns, tablefmt="orgtbl", floatfmt=".2f"))
-print(df.to_latex(index=False, float_format="%.2f"))
+print(df.to_latex(float_format="%.2f"))
 
 # External table
 df = DF[DF["experiment"] == "external"]
-df = df.pivot(index="name", columns=["w", "k", "canonical"], values="time")
+df = df.pivot_table(index="name", columns=["w", "k", "canonical"], values="time", aggfunc='median', sort=False)
 print(tabulate.tabulate(df, headers=df.columns, tablefmt="orgtbl", floatfmt=".2f"))
 print(df.to_latex(float_format="%.2f"))
 

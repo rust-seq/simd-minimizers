@@ -433,27 +433,7 @@ fn human_genome(c: &mut Criterion) {
     let w = 11;
     let k = 21;
 
-    let packed_text = LazyCell::new(|| {
-        eprintln!("Reading..");
-        let start = std::time::Instant::now();
-        let mut packed_text = PackedSeqVec::default();
-        let Ok(mut reader) = needletail::parse_fastx_file("human-genome.fa") else {
-            eprintln!("Did not find human-genome.fa. Add/symlink it to test runtime on it.");
-            return PackedSeqVec::default();
-        };
-        while let Some(r) = reader.next() {
-            let r = r.unwrap();
-            eprintln!(
-                "Read {:?} of len {:?}",
-                std::str::from_utf8(r.id()),
-                r.raw_seq().len()
-            );
-            packed_text.push_ascii(r.raw_seq());
-            eprintln!("Packed len {:?}", packed_text.len);
-        }
-        eprintln!("Packing took {:?}", start.elapsed());
-        packed_text
-    });
+    let packed_text = LazyCell::new(|| read_human_genome());
 
     c.bench_function("human_genome", |b| {
         if packed_text.len() == 0 {

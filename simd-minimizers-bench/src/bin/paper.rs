@@ -10,6 +10,8 @@ fn main() {
     bench_minimizers(11, 21); // sshash
     bench_minimizers(19, 19); // minimap
 
+    bench_human_genome(11, 21);
+
     // bench_sliding_min();
 
     let results = RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
@@ -210,6 +212,37 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         v2.clear();
     }
+}
+
+fn bench_human_genome(w: usize, k: usize) {
+    let hg = simd_minimizers_bench::read_human_genome();
+    let packed_seq = hg.as_slice();
+    let n = packed_seq.len();
+
+    let params = Params { n, w, k };
+
+    let v2 = &mut vec![];
+    {
+        // warmup
+        simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+        v2.clear();
+        simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+        v2.clear();
+    }
+
+    EXPERIMENT.with(|e| {
+        *e.borrow_mut() = "human-genome".to_string();
+    });
+    time("simd-minimizer", params, || {
+        v2.clear();
+        simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+    });
+    v2.clear();
+    time("canonical simd-minimizer", params, || {
+        v2.clear();
+        simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+    });
+    v2.clear();
 }
 
 fn bench_sliding_min() {

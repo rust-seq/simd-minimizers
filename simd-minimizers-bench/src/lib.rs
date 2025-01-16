@@ -31,6 +31,8 @@ pub use ringbuf::*;
 pub use sliding_min::*;
 pub use split::*;
 
+use packed_seq::{PackedSeqVec, SeqVec};
+
 pub trait Max {
     const MAX: Self;
 }
@@ -40,4 +42,25 @@ impl Max for usize {
 }
 impl Max for u64 {
     const MAX: u64 = u64::MAX;
+}
+
+pub fn read_human_genome() -> PackedSeqVec {
+    eprintln!("Reading..");
+    let start = std::time::Instant::now();
+    let mut packed_text = PackedSeqVec::default();
+    let Ok(mut reader) = needletail::parse_fastx_file("human-genome.fa") else {
+        eprintln!("Did not find human-genome.fa. Add/symlink it to test runtime on it.");
+        return PackedSeqVec::default();
+    };
+    while let Some(r) = reader.next() {
+        let r = r.unwrap();
+        eprintln!(
+            "Read {:?} of len {:?}",
+            std::str::from_utf8(r.id()),
+            r.raw_seq().len()
+        );
+        packed_text.push_ascii(r.raw_seq());
+    }
+    eprintln!("Reading & packing took {:?}", start.elapsed());
+    packed_text
 }

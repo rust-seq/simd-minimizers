@@ -4,4 +4,4 @@ eval:
     python eval.py
 
 bench:
-    cargo run -r
+    cargo +nightly run -r

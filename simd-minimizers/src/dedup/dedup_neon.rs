@@ -1,116 +1,59 @@
-use std::{arch::x86_64::__m256i, mem::transmute};
+use core::mem::transmute;
+use wide::u32x4;
+use wide::u32x8 as S;
 
 const L: usize = 256 / 32;
-
-// Slightly modified dedup based on the version of Daniel Lemire's blog.
-// https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/
-// https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp
-//
-// Modification:
-// Instead of blending in the 'old' value just before a window and then rotating the lanes,
-// we simply do an unaligned read shifted by one value.
-// This causes some issues when the first value of that read was overwritten already,
-// and so we do this read one iteration ahead, as `nextprev`.
-pub fn dedup_vec(v: &mut Vec<u32>) {
-    unsafe {
-        use std::arch::x86_64::*;
-        if v.is_empty() {
-            return;
-        }
-        let mut write_idx = 1;
-        let mut read_idx = 1;
-
-        let mut prev = _mm256_loadu_si256(v.as_ptr().add(read_idx - 1) as *const __m256i);
-        while read_idx + 2 * L - 1 <= v.len() {
-            // The next prev is read one iteration early to avoid reading data that was just modified.
-            let nextprev = _mm256_loadu_si256(v.as_ptr().add(read_idx - 1 + L) as *const __m256i);
-            let new = _mm256_loadu_si256(v.as_ptr().add(read_idx) as *const __m256i);
-            write_unique_with_prev(prev, new, v, &mut write_idx);
-            prev = nextprev;
-            read_idx += L;
-        }
-        let mut oldv = v[write_idx - 1];
-        while read_idx < v.len() {
-            let newv = *v.get_unchecked(read_idx);
-            if newv != oldv {
-                *v.get_unchecked_mut(write_idx) = newv;
-                write_idx += 1;
-            }
-            oldv = newv;
-            read_idx += 1;
-        }
-        v.resize(write_idx, 0);
-    }
-}
-
-fn write_unique_with_prev(prev: __m256i, new: __m256i, v: &mut [u32], write_idx: &mut usize) {
-    unsafe {
-        use std::arch::x86_64::*;
-        let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(prev, new))) as usize;
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = UNIQSHUF[m];
-        let val = _mm256_permutevar8x32_epi32(new, key);
-        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
-        *write_idx += numberofnewvalues;
-    }
-}
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
 #[inline(always)]
-pub fn append_unique_vals(
-    old: __m256i,
-    new: __m256i,
-    vals: __m256i,
-    v: &mut [u32],
-    write_idx: &mut usize,
-) {
-    unsafe {
-        use std::arch::x86_64::*;
+pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
+    use core::arch::aarch64::{vpaddd_u64, vpaddlq_u32, vqtbl2q_u8, vst1_u32_x4};
 
-        let recon = _mm256_blend_epi32(old, new, 0b01111111);
-        let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
-        let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
+    let new_old_mask = S::new([
+        u32::MAX,
+        u32::MAX,
+        u32::MAX,
+        u32::MAX,
+        u32::MAX,
+        u32::MAX,
+        u32::MAX,
+        0,
+    ]);
+    let recon = new_old_mask.blend(new, old);
 
-        let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = UNIQSHUF[m];
-        let val = _mm256_permutevar8x32_epi32(vals, key);
-        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
-        *write_idx += numberofnewvalues;
-    }
-}
+    let rotate_idx = S::new([7, 0, 1, 2, 3, 4, 5, 6]);
+    let idx = rotate_idx * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
+    let (i1, i2) = transmute(idx);
+    let t = transmute(recon);
+    let r1 = vqtbl2q_u8(t, i1);
+    let r2 = vqtbl2q_u8(t, i2);
+    let prec: S = transmute((r1, r2));
 
-#[cfg(test)]
-mod test {
-    use std::time::Instant;
+    let dup = prec.cmp_eq(new);
+    let (d1, d2): (u32x4, u32x4) = transmute(dup);
+    let pow1 = u32x4::new([1, 2, 4, 8]);
+    let pow2 = u32x4::new([16, 32, 64, 128]);
+    let m1 = vpaddd_u64(vpaddlq_u32(transmute(d1 & pow1)));
+    let m2 = vpaddd_u64(vpaddlq_u32(transmute(d2 & pow2)));
+    let m = (m1 | m2) as usize;
 
-    #[test]
-    fn dedup() {
-        let len = 10_000_000;
-        for max in [len / 10, len / 3, len, len * 3, len * 10] {
-            // 1M random numbers up to max.
-            let mut v: Vec<u32> = (0..len).map(|_| rand::random::<u32>() % max).collect();
-            v.sort();
-
-            let mut v2 = v.clone();
-            let start = Instant::now();
-            v2.dedup();
-            eprintln!("dedup_std {} in {:?}", max, start.elapsed());
-
-            let mut v3 = v.clone();
-            let start = Instant::now();
-            super::dedup_vec(&mut v3);
-            eprintln!("dedup_new {} in {:?}", max, start.elapsed());
-            assert_eq!(v2, v3, "Failure for\n      : {v:?}");
-        }
-    }
+    let numberofnewvalues = L - m.count_ones() as usize;
+    let key = UNIQSHUF[m];
+    let idx = key * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
+    let (i1, i2) = transmute(idx);
+    let t = transmute(vals);
+    let r1 = vqtbl2q_u8(t, i1);
+    let r2 = vqtbl2q_u8(t, i2);
+    let val: S = transmute((r1, r2));
+    vst1_u32_x4(v.as_mut_ptr().add(*write_idx), transmute(val));
+    *write_idx += numberofnewvalues;
 }
 
 /// For each of 256 masks of which elements are different than their predecessor,
 /// a shuffle that sends those new elements to the beginning.
 #[rustfmt::skip]
-const UNIQSHUF: [__m256i; 256] = unsafe {transmute([
+const UNIQSHUF: [S; 256] = unsafe {transmute([
 0,1,2,3,4,5,6,7,
 1,2,3,4,5,6,7,0,
 0,2,3,4,5,6,7,0,

@@ -21,8 +21,8 @@ DF["name"] = DF["name"].str.replace("canonical ", "")
 print(tabulate.tabulate(DF, headers=DF.columns, tablefmt="orgtbl", floatfmt=".2f"))
 
 # Incremental table
-df = DF[(DF["experiment"] == "incremental") & (DF.w == 11)][["name", "time"]]
-df = df.pivot_table(index='name', values='time', aggfunc='median', sort=False)
+df = DF[(DF["experiment"] == "incremental")][["name", "time", 'k', 'w']]
+df = df.pivot_table(index='name', columns=['w', 'k'], values='time', aggfunc='median', sort=False)
 print(tabulate.tabulate(df, headers=df.columns, tablefmt="orgtbl", floatfmt=".2f"))
 print(df.to_latex(float_format="%.2f"))
 

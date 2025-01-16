@@ -76,6 +76,7 @@
 // Private modules.
 mod dedup;
 mod intrinsics;
+mod transpose;
 
 // Public modules.
 pub mod canonical;

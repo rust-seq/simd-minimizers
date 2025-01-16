@@ -9,6 +9,7 @@ use packed_seq::S;
 use wide::u32x8;
 
 use super::dedup::append_unique_vals;
+use super::transpose::transpose;
 
 /// Convenience wrapper around `collect_into`.
 pub fn collect(
@@ -183,50 +184,4 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
 
         // v_flat
     })
-}
-
-/// A utility function for creating masks to use with Intel shuffle and
-/// permute intrinsics.
-///
-/// Copied from the standard library, since it is unstable.
-const fn _mm_shuffle(z: u32, y: u32, x: u32, w: u32) -> i32 {
-    ((z << 6) | (y << 4) | (x << 2) | w) as i32
-}
-
-/// Transpose a matrix of 8 SIMD vectors.
-/// https://stackoverflow.com/questions/25622745/transpose-an-8x8-float-using-avx-avx2
-///
-/// TODO: Investigate other transpose functions mentioned there?
-#[inline(always)]
-fn transpose(m: [S; 8]) -> [S; 8] {
-    unsafe {
-        use std::arch::x86_64::*;
-        let m: [__m256; 8] = transmute(m);
-        let x0 = _mm256_unpacklo_ps(m[0], m[1]);
-        let x1 = _mm256_unpackhi_ps(m[0], m[1]);
-        let x2 = _mm256_unpacklo_ps(m[2], m[3]);
-        let x3 = _mm256_unpackhi_ps(m[2], m[3]);
-        let x4 = _mm256_unpacklo_ps(m[4], m[5]);
-        let x5 = _mm256_unpackhi_ps(m[4], m[5]);
-        let x6 = _mm256_unpacklo_ps(m[6], m[7]);
-        let x7 = _mm256_unpackhi_ps(m[6], m[7]);
-        let y0 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(1, 0, 1, 0));
-        let y1 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(3, 2, 3, 2));
-        let y2 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(1, 0, 1, 0));
-        let y3 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(3, 2, 3, 2));
-        let y4 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(1, 0, 1, 0));
-        let y5 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(3, 2, 3, 2));
-        let y6 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(1, 0, 1, 0));
-        let y7 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(3, 2, 3, 2));
-        let mut t: [__m256; 8] = [transmute([0; 8]); 8];
-        t[0] = _mm256_permute2f128_ps(y0, y4, 0x20);
-        t[1] = _mm256_permute2f128_ps(y1, y5, 0x20);
-        t[2] = _mm256_permute2f128_ps(y2, y6, 0x20);
-        t[3] = _mm256_permute2f128_ps(y3, y7, 0x20);
-        t[4] = _mm256_permute2f128_ps(y0, y4, 0x31);
-        t[5] = _mm256_permute2f128_ps(y1, y5, 0x31);
-        t[6] = _mm256_permute2f128_ps(y2, y6, 0x31);
-        t[7] = _mm256_permute2f128_ps(y3, y7, 0x31);
-        transmute(t)
-    }
 }

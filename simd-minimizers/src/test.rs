@@ -2,15 +2,27 @@ use super::*;
 use crate::{minimizers::*, nthash::*};
 use collect::collect;
 use itertools::Itertools;
-use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeqVec, SeqVec};
+use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
 use rand::Rng;
 use std::{iter::once, sync::LazyLock};
 
+/// Swap G and T, so that the lex order is the same as for the packed version.
+fn swap_gt(c: u8) -> u8 {
+    match c {
+        b'G' => b'T',
+        b'T' => b'G',
+        c => c,
+    }
+}
+
 static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024 * 32));
+static SLICE: LazyLock<Vec<u8>> =
+    LazyLock::new(|| ASCII_SEQ.seq.iter().copied().map(swap_gt).collect_vec());
 static PACKED_SEQ: LazyLock<PackedSeqVec> =
     LazyLock::new(|| PackedSeqVec::from_ascii(&ASCII_SEQ.seq));
 
-fn test_on_inputs(f: impl Fn(usize, usize, AsciiSeq, PackedSeq)) {
+fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
+    let slice = &*SLICE;
     let ascii_seq = &*ASCII_SEQ;
     let packed_seq = &*PACKED_SEQ;
     let mut rng = rand::thread_rng();
@@ -23,17 +35,18 @@ fn test_on_inputs(f: impl Fn(usize, usize, AsciiSeq, PackedSeq)) {
     for &k in &ks {
         for &w in &ws {
             for &len in &lens {
+                let slice = slice.slice(0..len);
                 let ascii_seq = ascii_seq.slice(0..len);
                 let packed_seq = packed_seq.slice(0..len);
 
-                f(k, w, ascii_seq, packed_seq);
+                f(k, w, slice, ascii_seq, packed_seq);
             }
         }
     }
 }
 
 fn test_nthash<const RC: bool>() {
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         if w > 1 {
             return;
         }
@@ -101,7 +114,7 @@ fn nthash_canonical_is_revcomp() {
 #[test]
 fn test_anti_lex_hash() {
     use anti_lex::*;
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, slice, ascii_seq, packed_seq| {
         if w > 1 {
             return;
         }
@@ -120,12 +133,16 @@ fn test_anti_lex_hash() {
         assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
         assert_eq!(simd_ascii, naive, "k={}, len={}", k, len);
         assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
+
+        let scalar_slice = anti_lex_hash_seq_scalar(slice, k).collect::<Vec<_>>();
+        let simd_slice = collect(anti_lex_hash_seq_simd(slice, k, 1));
+        assert_eq!(simd_slice, scalar_slice, "k={}, len={}", k, len);
     });
 }
 
 #[test]
 fn minimizers_fwd() {
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let naive = ascii_seq
             .0
             .windows(w + k - 1)
@@ -148,7 +165,7 @@ fn minimizers_fwd() {
 
 #[test]
 fn minimizers_canonical() {
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         if (k + w - 1) % 2 == 0 {
             return;
         }
@@ -166,7 +183,7 @@ fn minimizers_canonical() {
 
 #[test]
 fn minimizer_positions() {
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let mut scalar_ascii = vec![];
         minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
         let mut scalar_packed = vec![];
@@ -185,7 +202,7 @@ fn minimizer_positions() {
 
 #[test]
 fn canonical_minimizer_positions() {
-    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         if (k + w - 1) % 2 == 0 {
             return;
         }

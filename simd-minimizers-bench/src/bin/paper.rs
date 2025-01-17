@@ -1,22 +1,26 @@
 use packed_seq::{AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
 use rand::Rng;
-use simd_minimizers::{nthash::nthash_mapper, sliding_min::sliding_min_mapper};
+use simd_minimizers::{
+    nthash::{nthash_mapper, CharHasher, MulHasher, NtHasher},
+    sliding_min::sliding_min_mapper,
+};
 use simd_minimizers_bench::*;
 use std::hint::black_box;
 use wide::u32x8;
 
 fn main() {
-    bench_minimizers(5, 31); // kraken
-    bench_minimizers(11, 21); // sshash
-    bench_minimizers(19, 19); // minimap
+    // bench_minimizers::<NtHasher>(5, 31); // kraken
+    bench_minimizers::<NtHasher>(11, 21); // sshash
+    bench_minimizers::<MulHasher>(11, 21); // sshash
+                                           // bench_minimizers::<NtHasher>(19, 19); // minimap
 
-    bench_human_genome(11, 21);
+    // bench_human_genome::<NtHasher>(11, 21);
 
     // bench_sliding_min();
 
     let results = RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
     let json = serde_json::to_string(&results).unwrap();
-    std::fs::write("results.json", json).unwrap();
+    std::fs::write("results-hash.json", json).unwrap();
 }
 
 thread_local! {
@@ -41,7 +45,7 @@ struct Result {
     time: f64,
 }
 
-fn bench_minimizers(w: usize, k: usize) {
+fn bench_minimizers<H: CharHasher>(w: usize, k: usize) {
     let n = 100_000_000;
 
     let params = Params { n, w, k };
@@ -63,12 +67,12 @@ fn bench_minimizers(w: usize, k: usize) {
         v.clear();
 
         simd_minimizers::collect::collect_into(
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w),
+            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
             v2,
         );
         v2.clear();
         simd_minimizers::collect::collect_and_dedup_into::<false>(
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w),
+            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
             v2,
         );
         v2.clear();
@@ -106,23 +110,23 @@ fn bench_minimizers(w: usize, k: usize) {
                 .map(|(a, r)| a + r)
         });
         time_v(v, "nthash", params, || {
-            simd_minimizers::nthash::nthash_seq_simd::<false, PackedSeq>(packed_seq, k, w).0
+            simd_minimizers::nthash::nthash_seq_simd::<false, PackedSeq, H>(packed_seq, k, w).0
         });
         time_v(v, "sliding_min", params, || {
-            simd_minimizers::minimizers::minimizers_seq_simd(packed_seq, k, w).0
+            simd_minimizers::minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w).0
         });
 
         time("fwd-collect", params, || {
             v2.clear();
             simd_minimizers::collect::collect_into(
-                simd_minimizers::minimizers::minimizers_seq_simd(packed_seq, k, w),
+                simd_minimizers::minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w),
                 v2,
             )
         });
         v2.clear();
         time("fwd-dedup", params, || {
             v2.clear();
-            simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+            simd_minimizers::minimizer_positions::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
 
@@ -130,25 +134,27 @@ fn bench_minimizers(w: usize, k: usize) {
             // Inline minimizers_seq_simd.
             let add_remove = packed_seq.par_iter_bp_delayed(k + w - 1, k - 1).0;
             // True instead of default false here.
-            let mut nthash = nthash_mapper::<true, PackedSeq>(k, w);
+            let mut nthash = nthash_mapper::<true, PackedSeq, H>(k, w);
             let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
             add_remove.map(move |(a, rk)| sliding_min(nthash((a, rk))))
         });
         time_v(v, "canonical-strand", params, || {
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w).0
+            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w).0
         });
 
         time("canonical-collect", params, || {
             v2.clear();
             simd_minimizers::collect::collect_into(
-                simd_minimizers::minimizers::canonical_minimizers_seq_simd(packed_seq, k, w),
+                simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(
+                    packed_seq, k, w,
+                ),
                 v2,
             )
         });
         v2.clear();
         time("canonical-dedup", params, || {
             v2.clear();
-            simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+            simd_minimizers::canonical_minimizer_positions::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
     }
@@ -160,12 +166,12 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nFinal functions\n");
         time("simd-minimizer", params, || {
             v2.clear();
-            simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+            simd_minimizers::minimizer_positions::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
         time("canonical simd-minimizer", params, || {
             v2.clear();
-            simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+            simd_minimizers::canonical_minimizer_positions::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
     }
@@ -174,12 +180,12 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nSCALAR\n");
         time("positions scalar", params, || {
             v2.clear();
-            simd_minimizers::minimizer_positions_scalar(packed_seq, k, w, v2);
+            simd_minimizers::minimizer_positions_scalar::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
         time("canonical positions scalar", params, || {
             v2.clear();
-            simd_minimizers::canonical_minimizer_positions_scalar(packed_seq, k, w, v2);
+            simd_minimizers::canonical_minimizer_positions_scalar::<H>(packed_seq, k, w, v2);
         });
         v2.clear();
     }
@@ -214,7 +220,7 @@ fn bench_minimizers(w: usize, k: usize) {
     }
 }
 
-fn bench_human_genome(w: usize, k: usize) {
+fn bench_human_genome<H: CharHasher>(w: usize, k: usize) {
     let hg = simd_minimizers_bench::read_human_genome();
     let packed_seq = hg.as_slice();
     let n = packed_seq.len();
@@ -224,9 +230,9 @@ fn bench_human_genome(w: usize, k: usize) {
     let v2 = &mut vec![];
     {
         // warmup
-        simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+        simd_minimizers::minimizer_positions::<H>(packed_seq, k, w, v2);
         v2.clear();
-        simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+        simd_minimizers::canonical_minimizer_positions::<H>(packed_seq, k, w, v2);
         v2.clear();
     }
 
@@ -235,12 +241,12 @@ fn bench_human_genome(w: usize, k: usize) {
     });
     time("simd-minimizer", params, || {
         v2.clear();
-        simd_minimizers::minimizer_positions(packed_seq, k, w, v2);
+        simd_minimizers::minimizer_positions::<H>(packed_seq, k, w, v2);
     });
     v2.clear();
     time("canonical simd-minimizer", params, || {
         v2.clear();
-        simd_minimizers::canonical_minimizer_positions(packed_seq, k, w, v2);
+        simd_minimizers::canonical_minimizer_positions::<H>(packed_seq, k, w, v2);
     });
     v2.clear();
 }
@@ -306,7 +312,7 @@ fn time_v<T: std::iter::Sum, I: Iterator<Item = T>>(
 }
 
 fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
-    for _ in 0..5 {
+    for _ in 0..1 {
         let start = std::time::Instant::now();
         black_box(f());
         let elapsed = start.elapsed().as_secs_f64() * 1_000_000_000. / params.n as f64;

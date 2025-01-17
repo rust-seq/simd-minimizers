@@ -86,6 +86,7 @@ pub mod minimizers;
 pub mod nthash;
 pub mod sliding_min;
 
+use nthash::CharHasher;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
 /// Re-export of the underlying SIMD type.
@@ -108,8 +109,13 @@ use packed_seq::Seq;
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
-    let head_tail = minimizers_seq_simd(seq, k, w);
+pub fn minimizer_positions<'s, H: CharHasher>(
+    seq: impl Seq<'s>,
+    k: usize,
+    w: usize,
+    out_vec: &mut Vec<u32>,
+) {
+    let head_tail = minimizers_seq_simd::<_, H>(seq, k, w);
     collect_and_dedup_into::<false>(head_tail, out_vec);
 }
 
@@ -117,13 +123,13 @@ pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize, out_vec: &
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 /// l=w+k-1 must be odd to determine the strand of each window.
-pub fn canonical_minimizer_positions<'s>(
+pub fn canonical_minimizer_positions<'s, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
-    let head_tail = canonical_minimizers_seq_simd(seq, k, w);
+    let head_tail = canonical_minimizers_seq_simd::<_, H>(seq, k, w);
     collect_and_dedup_into::<false>(head_tail, out_vec);
 }
 
@@ -131,13 +137,13 @@ pub fn canonical_minimizer_positions<'s>(
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 /// This scalar version can be faster for sequences known to be short.
-pub fn minimizer_positions_scalar<'s>(
+pub fn minimizer_positions_scalar<'s, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
-    out_vec.extend(minimizers_seq_scalar(seq, k, w).dedup());
+    out_vec.extend(minimizers_seq_scalar::<H>(seq, k, w).dedup());
 }
 
 /// Deduplicated positions of all canonical minimizers in the sequence, not using SIMD.
@@ -145,11 +151,11 @@ pub fn minimizer_positions_scalar<'s>(
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 /// l=w+k-1 must be odd to determine the strand of each window.
 /// This scalar version can be faster for sequences known to be short.
-pub fn canonical_minimizer_positions_scalar<'s>(
+pub fn canonical_minimizer_positions_scalar<'s, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
-    out_vec.extend(canonical_minimizers_seq_scalar(seq, k, w).dedup());
+    out_vec.extend(canonical_minimizers_seq_scalar::<H>(seq, k, w).dedup());
 }

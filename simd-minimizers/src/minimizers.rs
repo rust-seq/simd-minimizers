@@ -1,7 +1,10 @@
 //! Find the (canonical) minimizers of a sequence.
 use std::iter::zip;
 
-use crate::{canonical, nthash::Captures};
+use crate::{
+    canonical,
+    nthash::{Captures, CharHasher},
+};
 
 use super::{
     canonical::canonical_mapper,
@@ -9,11 +12,12 @@ use super::{
     sliding_min::{sliding_lr_min_mapper, sliding_min_mapper, sliding_min_scalar},
 };
 use itertools::Itertools;
-use packed_seq::{Seq, S};
+use packed_seq::Seq;
+use wide::u32x8;
 
 /// Returns the minimizer of a window using a naive linear scan.
-pub fn minimizer<'s>(seq: impl Seq<'s>, k: usize) -> usize {
-    nthash_seq_scalar::<false>(seq, k)
+pub fn minimizer<'s, H: CharHasher>(seq: impl Seq<'s>, k: usize) -> usize {
+    nthash_seq_scalar::<false, H>(seq, k)
         .map(|x| x & 0xffff_0000)
         .position_min()
         .unwrap()
@@ -24,12 +28,12 @@ pub fn minimizer<'s>(seq: impl Seq<'s>, k: usize) -> usize {
 /// `Itertools::dedup()` to obtain the distinct positions of the minimizers.
 ///
 /// Prefer `minimizer_simd_it` that internally used SIMD, or `minimizer_par_it` if it works for you.
-pub fn minimizers_seq_scalar<'s>(
+pub fn minimizers_seq_scalar<'s, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
-    let it = nthash_seq_scalar::<false>(seq, k);
+    let it = nthash_seq_scalar::<false, H>(seq, k);
     sliding_min_scalar::<true>(it, w)
 }
 
@@ -37,19 +41,19 @@ pub fn minimizers_seq_scalar<'s>(
 /// Then return the positions of the minimizers of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 // TODO: Take a hash function as argument.
-pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>>(
+pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
     seq: SEQ,
     k: usize,
     w: usize,
 ) -> (
-    impl ExactSizeIterator<Item = S> + Captures<&'s ()>,
+    impl ExactSizeIterator<Item = u32x8> + Captures<&'s ()>,
     impl ExactSizeIterator<Item = u32> + Captures<&'s ()>,
 ) {
     let l = k + w - 1;
 
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut nthash = nthash_mapper::<false, SEQ>(k, w);
+    let mut nthash = nthash_mapper::<false, SEQ, H>(k, w);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
@@ -60,7 +64,7 @@ pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>>(
     head.by_ref().take(l - 1).for_each(drop);
     let head_len = head.len();
 
-    let tail = minimizers_seq_scalar(tail, k, w).map(move |p| p + 8 * head_len as u32);
+    let tail = minimizers_seq_scalar::<H>(tail, k, w).map(move |p| p + 8 * head_len as u32);
     (head, tail)
 }
 
@@ -69,13 +73,13 @@ pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>>(
 // The minimizers above can take a canonical hash, but do not correctly break ties.
 // Below we fix that.
 
-pub fn canonical_minimizers_seq_scalar<'s>(
+pub fn canonical_minimizers_seq_scalar<'s, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
     // true: canonical
-    let kmer_hashes = nthash_seq_scalar::<true>(seq, k);
+    let kmer_hashes = nthash_seq_scalar::<true, H>(seq, k);
     // true: leftmost
     let left = sliding_min_scalar::<true>(kmer_hashes.clone(), w);
     // false: rightmost
@@ -93,12 +97,12 @@ pub fn canonical_minimizers_seq_scalar<'s>(
 }
 
 /// Use canonical NtHash, and keep both leftmost and rightmost minima.
-pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>>(
+pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
     seq: SEQ,
     k: usize,
     w: usize,
 ) -> (
-    impl ExactSizeIterator<Item = S> + Captures<&'s ()>,
+    impl ExactSizeIterator<Item = u32x8> + Captures<&'s ()>,
     impl ExactSizeIterator<Item = u32> + Captures<&'s ()>,
 ) {
     let l = k + w - 1;
@@ -107,7 +111,7 @@ pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>>(
     // while canonical first drops the character, so has l without -1.
     let (add_remove, tail) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
-    let mut nthash = nthash_mapper::<true, SEQ>(k, w);
+    let mut nthash = nthash_mapper::<true, SEQ, H>(k, w);
     let mut canonical = canonical_mapper(k, w);
     let mut sliding_min = sliding_lr_min_mapper(w, k, add_remove.len());
 
@@ -115,11 +119,12 @@ pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>>(
         let nthash = nthash((a, rk));
         let canonical = canonical((a, rl));
         let (lmin, rmin) = sliding_min(nthash);
-        unsafe { std::mem::transmute::<_, S>(canonical).blend(lmin, rmin) }
+        unsafe { std::mem::transmute::<_, u32x8>(canonical).blend(lmin, rmin) }
     });
 
     head.by_ref().take(l - 1).for_each(drop);
     let head_len = head.len();
-    let tail = canonical_minimizers_seq_scalar(tail, k, w).map(move |p| p + 8 * head_len as u32);
+    let tail =
+        canonical_minimizers_seq_scalar::<H>(tail, k, w).map(move |p| p + 8 * head_len as u32);
     (head, tail)
 }

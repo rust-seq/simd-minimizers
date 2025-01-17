@@ -45,7 +45,7 @@ fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     }
 }
 
-fn test_nthash<const RC: bool>() {
+fn test_nthash<const RC: bool, H: CharHasher>() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         if w > 1 {
             return;
@@ -54,12 +54,12 @@ fn test_nthash<const RC: bool>() {
         let naive = ascii_seq
             .0
             .windows(k)
-            .map(|seq| nthash_kmer::<RC>(AsciiSeq(seq)))
+            .map(|seq| nthash_kmer::<RC, H>(AsciiSeq(seq)))
             .collect::<Vec<_>>();
-        let scalar_ascii = nthash_seq_scalar::<RC>(ascii_seq, k).collect::<Vec<_>>();
-        let scalar_packed = nthash_seq_scalar::<RC>(packed_seq, k).collect::<Vec<_>>();
-        let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq>(ascii_seq, k, 1));
-        let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq>(packed_seq, k, 1));
+        let scalar_ascii = nthash_seq_scalar::<RC, H>(ascii_seq, k).collect::<Vec<_>>();
+        let scalar_packed = nthash_seq_scalar::<RC, H>(packed_seq, k).collect::<Vec<_>>();
+        let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq, H>(ascii_seq, k, 1));
+        let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq, H>(packed_seq, k, 1));
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
@@ -71,44 +71,58 @@ fn test_nthash<const RC: bool>() {
 
 #[test]
 fn nthash_forward() {
-    test_nthash::<false>();
+    test_nthash::<false, NtHasher>();
 }
 
 #[test]
 fn nthash_canonical() {
-    test_nthash::<true>();
+    test_nthash::<true, NtHasher>();
+}
+
+#[test]
+fn nthash_forward_mul() {
+    test_nthash::<false, MulHasher>();
+}
+
+#[test]
+fn nthash_canonical_mul() {
+    test_nthash::<true, MulHasher>();
 }
 
 #[test]
 fn nthash_canonical_is_revcomp() {
-    let seq = &*ASCII_SEQ;
-    let seq_rc = AsciiSeqVec::from_vec(
-        seq.seq
-            .iter()
-            .rev()
-            .map(|c| packed_seq::complement_char(*c))
-            .collect_vec(),
-    );
-    for k in [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-    ] {
-        for len in (0..100).chain(once(1024 * 32)) {
-            let seq = seq.slice(0..len);
-            let seq_rc = seq_rc.slice(seq_rc.len() - len..seq_rc.len());
-            let scalar = nthash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-            let scalar_rc = nthash_seq_scalar::<true>(seq_rc, k).collect::<Vec<_>>();
-            let scalar_rc_rc = scalar_rc.iter().rev().copied().collect_vec();
-            assert_eq!(
-                scalar_rc_rc,
-                scalar,
-                "k={}, len={} {:032b} {:032b}",
-                k,
-                len,
-                scalar.first().unwrap_or(&0),
-                scalar_rc_rc.first().unwrap_or(&0)
-            );
+    fn f<H: CharHasher>() {
+        let seq = &*ASCII_SEQ;
+        let seq_rc = AsciiSeqVec::from_vec(
+            seq.seq
+                .iter()
+                .rev()
+                .map(|c| packed_seq::complement_char(*c))
+                .collect_vec(),
+        );
+        for k in [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
+        ] {
+            for len in (0..100).chain(once(1024 * 32)) {
+                let seq = seq.slice(0..len);
+                let seq_rc = seq_rc.slice(seq_rc.len() - len..seq_rc.len());
+                let scalar = nthash_seq_scalar::<true, H>(seq, k).collect::<Vec<_>>();
+                let scalar_rc = nthash_seq_scalar::<true, H>(seq_rc, k).collect::<Vec<_>>();
+                let scalar_rc_rc = scalar_rc.iter().rev().copied().collect_vec();
+                assert_eq!(
+                    scalar_rc_rc,
+                    scalar,
+                    "k={}, len={} {:032b} {:032b}",
+                    k,
+                    len,
+                    scalar.first().unwrap_or(&0),
+                    scalar_rc_rc.first().unwrap_or(&0)
+                );
+            }
         }
     }
+    f::<NtHasher>();
+    f::<MulHasher>();
 }
 
 #[test]
@@ -142,82 +156,100 @@ fn test_anti_lex_hash() {
 
 #[test]
 fn minimizers_fwd() {
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        let naive = ascii_seq
-            .0
-            .windows(w + k - 1)
-            .enumerate()
-            .map(|(pos, seq)| (pos + minimizer(AsciiSeq(seq), k)) as u32)
-            .collect::<Vec<_>>();
+    fn f<H: CharHasher>() {
+        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+            let naive = ascii_seq
+                .0
+                .windows(w + k - 1)
+                .enumerate()
+                .map(|(pos, seq)| (pos + minimizer::<H>(AsciiSeq(seq), k)) as u32)
+                .collect::<Vec<_>>();
 
-        let scalar_ascii = minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
-        let scalar_packed = minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
-        let simd_ascii = collect(minimizers_seq_simd(ascii_seq, k, w));
-        let simd_packed = collect(minimizers_seq_simd(packed_seq, k, w));
+            let scalar_ascii = minimizers_seq_scalar::<H>(ascii_seq, k, w).collect::<Vec<_>>();
+            let scalar_packed = minimizers_seq_scalar::<H>(packed_seq, k, w).collect::<Vec<_>>();
+            let simd_ascii = collect(minimizers_seq_simd::<_, H>(ascii_seq, k, w));
+            let simd_packed = collect(minimizers_seq_simd::<_, H>(packed_seq, k, w));
 
-        let len = ascii_seq.len();
-        assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
-        assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
-    });
+            let len = ascii_seq.len();
+            assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
+        });
+    }
+    f::<NtHasher>();
+    f::<MulHasher>();
 }
 
 #[test]
 fn minimizers_canonical() {
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        if (k + w - 1) % 2 == 0 {
-            return;
-        }
-        let scalar_ascii = canonical_minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
-        let scalar_packed = canonical_minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
-        let simd_ascii = collect(canonical_minimizers_seq_simd(ascii_seq, k, w));
-        let simd_packed = collect(canonical_minimizers_seq_simd(packed_seq, k, w));
+    fn f<H: CharHasher>() {
+        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+            if (k + w - 1) % 2 == 0 {
+                return;
+            }
+            let scalar_ascii =
+                canonical_minimizers_seq_scalar::<H>(ascii_seq, k, w).collect::<Vec<_>>();
+            let scalar_packed =
+                canonical_minimizers_seq_scalar::<H>(packed_seq, k, w).collect::<Vec<_>>();
+            let simd_ascii = collect(canonical_minimizers_seq_simd::<_, H>(ascii_seq, k, w));
+            let simd_packed = collect(canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w));
 
-        let len = ascii_seq.len();
-        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-    });
+            let len = ascii_seq.len();
+            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+        });
+    }
+    f::<NtHasher>();
+    f::<MulHasher>();
 }
 
 #[test]
 fn minimizer_positions() {
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        let mut scalar_ascii = vec![];
-        minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
-        let mut scalar_packed = vec![];
-        minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
-        let mut simd_ascii = vec![];
-        super::minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
-        let mut simd_packed = vec![];
-        super::minimizer_positions(packed_seq, k, w, &mut simd_packed);
+    fn f<H: CharHasher>() {
+        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+            let mut scalar_ascii = vec![];
+            minimizer_positions_scalar::<H>(ascii_seq, k, w, &mut scalar_ascii);
+            let mut scalar_packed = vec![];
+            minimizer_positions_scalar::<H>(packed_seq, k, w, &mut scalar_packed);
+            let mut simd_ascii = vec![];
+            super::minimizer_positions::<H>(ascii_seq, k, w, &mut simd_ascii);
+            let mut simd_packed = vec![];
+            super::minimizer_positions::<H>(packed_seq, k, w, &mut simd_packed);
 
-        let len = ascii_seq.len();
-        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-    });
+            let len = ascii_seq.len();
+            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+        });
+    }
+    f::<NtHasher>();
+    f::<MulHasher>();
 }
 
 #[test]
 fn canonical_minimizer_positions() {
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        if (k + w - 1) % 2 == 0 {
-            return;
-        }
-        let mut scalar_ascii = vec![];
-        canonical_minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
-        let mut scalar_packed = vec![];
-        canonical_minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
-        let mut simd_ascii = vec![];
-        super::canonical_minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
-        let mut simd_packed = vec![];
-        super::canonical_minimizer_positions(packed_seq, k, w, &mut simd_packed);
+    fn f<H: CharHasher>() {
+        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+            if (k + w - 1) % 2 == 0 {
+                return;
+            }
+            let mut scalar_ascii = vec![];
+            canonical_minimizer_positions_scalar::<H>(ascii_seq, k, w, &mut scalar_ascii);
+            let mut scalar_packed = vec![];
+            canonical_minimizer_positions_scalar::<H>(packed_seq, k, w, &mut scalar_packed);
+            let mut simd_ascii = vec![];
+            super::canonical_minimizer_positions::<H>(ascii_seq, k, w, &mut simd_ascii);
+            let mut simd_packed = vec![];
+            super::canonical_minimizer_positions::<H>(packed_seq, k, w, &mut simd_packed);
 
-        let len = ascii_seq.len();
-        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-    });
+            let len = ascii_seq.len();
+            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+        });
+    }
+    f::<NtHasher>();
+    f::<MulHasher>();
 }

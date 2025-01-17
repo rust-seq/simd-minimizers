@@ -6,8 +6,7 @@ license = "MIT"
 
 [dependencies]
 itertools = "0.12"
-packed-seq = { version = "0.1.0", git = "https://github.com/rust-seq/packed-seq" }
-# packed-seq = { version = "0.1.0", path = "../packed-seq" }
+packed-seq.workspace = true
 wide = "0.7.30"
 
 [dev-dependencies]

@@ -9,3 +9,6 @@ resolver = "2"
 lto = "thin"
 incremental = true
 debug = true
+
+[workspace.dependencies]
+packed-seq = { version = "0.1.0", git = "https://github.com/rust-seq/packed-seq" }

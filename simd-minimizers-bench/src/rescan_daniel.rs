@@ -39,6 +39,8 @@ fn lookup<const MUL: bool>(b: u8) -> T {
     if MUL {
         b as T * C
     } else {
+        // Checked, because unchecked causes vectorization
+        // into slow `gather` instructions :(
         LUT[b as usize]
     }
 }

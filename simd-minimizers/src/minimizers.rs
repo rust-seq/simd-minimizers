@@ -37,8 +37,8 @@ pub fn minimizers_seq_scalar<'s>(
 /// Then return the positions of the minimizers of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 // TODO: Take a hash function as argument.
-pub fn minimizers_seq_simd<'s>(
-    seq: impl Seq<'s>,
+pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>>(
+    seq: SEQ,
     k: usize,
     w: usize,
 ) -> (
@@ -49,7 +49,7 @@ pub fn minimizers_seq_simd<'s>(
 
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut nthash = nthash_mapper::<false>(k, w);
+    let mut nthash = nthash_mapper::<false, SEQ>(k, w);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
@@ -93,8 +93,8 @@ pub fn canonical_minimizers_seq_scalar<'s>(
 }
 
 /// Use canonical NtHash, and keep both leftmost and rightmost minima.
-pub fn canonical_minimizers_seq_simd<'s>(
-    seq: impl Seq<'s>,
+pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>>(
+    seq: SEQ,
     k: usize,
     w: usize,
 ) -> (
@@ -107,7 +107,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     // while canonical first drops the character, so has l without -1.
     let (add_remove, tail) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
-    let mut nthash = nthash_mapper::<true>(k, w);
+    let mut nthash = nthash_mapper::<true, SEQ>(k, w);
     let mut canonical = canonical_mapper(k, w);
     let mut sliding_min = sliding_lr_min_mapper(w, k, add_remove.len());
 

@@ -27,6 +27,8 @@ const HASHES_C: [u32; 4] = [
 /// When `RC` is true, compute a canonical hash.
 /// TODO: Investigate if we can use CLMUL instruction for speedup.
 pub fn nthash_kmer<'s, const RC: bool>(seq: impl Seq<'s>) -> u32 {
+    debug_assert_eq!(seq.bits_per_char(), 2);
+
     let k = seq.len();
     let mut hfw: u32 = 0;
     let mut hrc: u32 = 0;
@@ -47,6 +49,7 @@ pub fn nthash_seq_scalar<'s, const RC: bool>(
     seq: impl Seq<'s>,
     k: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> + Clone {
+    assert_eq!(seq.bits_per_char(), 2);
     assert!(k > 0);
     let mut hfw: u32 = 0;
     let mut hrc: u32 = 0;
@@ -76,14 +79,16 @@ pub fn nthash_seq_scalar<'s, const RC: bool>(
 /// Returned chunks overlap by w-1 hashes. Set w=1 for non-overlapping chunks.
 ///
 /// Set `RC` to true for canonical ntHash.
-pub fn nthash_seq_simd<'s, const RC: bool>(
-    seq: PackedSeq<'s>,
+pub fn nthash_seq_simd<'s, const RC: bool, SEQ: Seq<'s>>(
+    seq: impl Seq<'s>,
     k: usize,
     w: usize,
 ) -> (
     impl ExactSizeIterator<Item = S> + Captures<&'s ()> + Clone,
     impl ExactSizeIterator<Item = u32> + Captures<&'s ()> + Clone,
 ) {
+    assert_eq!(SEQ::BITS_PER_CHAR, 2);
+
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
     let mut it = add_remove.map(nthash_mapper::<RC>(k, w));
@@ -99,7 +104,12 @@ pub fn nthash_seq_simd<'s, const RC: bool>(
 /// The first k-1 returned values will be useless.
 ///
 /// Set `RC` to true for canonical ntHash.
-pub fn nthash_mapper<const RC: bool>(k: usize, w: usize) -> impl FnMut((S, S)) -> S + Clone {
+pub fn nthash_mapper<'s, const RC: bool, SEQ: Seq<'s>>(
+    k: usize,
+    w: usize,
+) -> impl FnMut((S, S)) -> S + Clone {
+    assert_eq!(SEQ::BITS_PER_CHAR, 2);
+
     assert!(k > 0);
     assert!(w > 0);
     // Each 128-bit half has a copy of the 4 32-bit hashes.

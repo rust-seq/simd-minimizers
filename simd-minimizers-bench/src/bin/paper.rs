@@ -1,4 +1,4 @@
-use packed_seq::{AsciiSeqVec, PackedSeqVec, Seq, SeqVec};
+use packed_seq::{AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
 use rand::Rng;
 use simd_minimizers::{nthash::nthash_mapper, sliding_min::sliding_min_mapper};
 use simd_minimizers_bench::*;
@@ -106,7 +106,7 @@ fn bench_minimizers(w: usize, k: usize) {
                 .map(|(a, r)| a + r)
         });
         time_v(v, "nthash", params, || {
-            simd_minimizers::nthash::nthash_seq_simd::<false>(packed_seq, k, w).0
+            simd_minimizers::nthash::nthash_seq_simd::<false, PackedSeq>(packed_seq, k, w).0
         });
         time_v(v, "sliding_min", params, || {
             simd_minimizers::minimizers::minimizers_seq_simd(packed_seq, k, w).0
@@ -130,7 +130,7 @@ fn bench_minimizers(w: usize, k: usize) {
             // Inline minimizers_seq_simd.
             let add_remove = packed_seq.par_iter_bp_delayed(k + w - 1, k - 1).0;
             // True instead of default false here.
-            let mut nthash = nthash_mapper::<true>(k, w);
+            let mut nthash = nthash_mapper::<true, PackedSeq>(k, w);
             let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
             add_remove.map(move |(a, rk)| sliding_min(nthash((a, rk))))
         });

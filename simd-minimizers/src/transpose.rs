@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use wide::u32x4;
 use wide::u32x8 as S;
 

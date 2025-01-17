@@ -245,6 +245,7 @@ fn bench_human_genome(w: usize, k: usize) {
     v2.clear();
 }
 
+#[allow(unused)]
 fn bench_sliding_min() {
     EXPERIMENT.with(|e| {
         *e.borrow_mut() = "sliding_min".to_string();

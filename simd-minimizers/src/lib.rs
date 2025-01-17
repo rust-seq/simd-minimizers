@@ -103,12 +103,12 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-use packed_seq::{PackedSeq, Seq};
+use packed_seq::Seq;
 
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-pub fn minimizer_positions<'s>(seq: PackedSeq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
+pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
     let head_tail = minimizers_seq_simd(seq, k, w);
     collect_and_dedup_into::<false>(head_tail, out_vec);
 }
@@ -118,7 +118,7 @@ pub fn minimizer_positions<'s>(seq: PackedSeq<'s>, k: usize, w: usize, out_vec: 
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 /// l=w+k-1 must be odd to determine the strand of each window.
 pub fn canonical_minimizer_positions<'s>(
-    seq: PackedSeq<'s>,
+    seq: impl Seq<'s>,
     k: usize,
     w: usize,
     out_vec: &mut Vec<u32>,

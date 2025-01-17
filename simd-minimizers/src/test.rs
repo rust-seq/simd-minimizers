@@ -45,11 +45,13 @@ fn test_nthash<const RC: bool>() {
             .collect::<Vec<_>>();
         let scalar_ascii = nthash_seq_scalar::<RC>(ascii_seq, k).collect::<Vec<_>>();
         let scalar_packed = nthash_seq_scalar::<RC>(packed_seq, k).collect::<Vec<_>>();
-        let simd_packed = collect(nthash_seq_simd::<RC>(packed_seq, k, 1));
+        let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq>(ascii_seq, k, 1));
+        let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq>(packed_seq, k, 1));
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
         assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
+        assert_eq!(simd_ascii, naive, "k={}, len={}", k, len);
         assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
     });
 }
@@ -109,15 +111,14 @@ fn test_anti_lex_hash() {
             .windows(k)
             .map(|seq| anti_lex_hash_kmer(AsciiSeq(seq)))
             .collect::<Vec<_>>();
-        // scalar ascii
         let scalar_ascii = anti_lex_hash_seq_scalar(ascii_seq, k).collect::<Vec<_>>();
-        // scalar packed
         let scalar_packed = anti_lex_hash_seq_scalar(packed_seq, k).collect::<Vec<_>>();
-        // simd packed
-        let simd_packed = collect::collect(anti_lex_hash_seq_simd(packed_seq, k, 1));
+        let simd_ascii = collect(anti_lex_hash_seq_simd(ascii_seq, k, 1));
+        let simd_packed = collect(anti_lex_hash_seq_simd(packed_seq, k, 1));
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
         assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
+        assert_eq!(simd_ascii, naive, "k={}, len={}", k, len);
         assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
     });
 }
@@ -134,12 +135,14 @@ fn minimizers_fwd() {
 
         let scalar_ascii = minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
         let scalar_packed = minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
+        let simd_ascii = collect(minimizers_seq_simd(ascii_seq, k, w));
         let simd_packed = collect(minimizers_seq_simd(packed_seq, k, w));
 
         let len = ascii_seq.len();
         assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
-        assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
         assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
     });
 }
 
@@ -151,10 +154,12 @@ fn minimizers_canonical() {
         }
         let scalar_ascii = canonical_minimizers_seq_scalar(ascii_seq, k, w).collect::<Vec<_>>();
         let scalar_packed = canonical_minimizers_seq_scalar(packed_seq, k, w).collect::<Vec<_>>();
+        let simd_ascii = collect(canonical_minimizers_seq_simd(ascii_seq, k, w));
         let simd_packed = collect(canonical_minimizers_seq_simd(packed_seq, k, w));
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
         assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
     });
 }
@@ -166,11 +171,14 @@ fn minimizer_positions() {
         minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
         let mut scalar_packed = vec![];
         minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        let mut simd_ascii = vec![];
+        super::minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
         let mut simd_packed = vec![];
         super::minimizer_positions(packed_seq, k, w, &mut simd_packed);
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
         assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
     });
 }
@@ -185,11 +193,14 @@ fn canonical_minimizer_positions() {
         canonical_minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
         let mut scalar_packed = vec![];
         canonical_minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        let mut simd_ascii = vec![];
+        super::canonical_minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
         let mut simd_packed = vec![];
         super::canonical_minimizer_positions(packed_seq, k, w, &mut simd_packed);
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
         assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
     });
 }

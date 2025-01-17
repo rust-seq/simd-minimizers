@@ -450,7 +450,7 @@ fn human_genome(c: &mut Criterion) {
     let w = 11;
     let k = 21;
 
-    let packed_text = LazyCell::new(|| read_human_genome());
+    let packed_text = LazyCell::new(|| read_human_genome(1));
 
     c.bench_function("human_genome", |b| {
         if packed_text.len() == 0 {

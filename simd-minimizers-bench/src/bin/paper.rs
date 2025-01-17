@@ -227,12 +227,12 @@ fn bench_minimizers<H: CharHasher>(w: usize, k: usize) {
 }
 
 fn bench_human_genome<H: CharHasher>(w: usize, k: usize) {
-    let hg = simd_minimizers_bench::read_human_genome();
-    let packed_seq = hg.as_slice();
-    let n = packed_seq.len();
-
+    // 200MB.
+    let n = 200 * 1024 * 1024;
     let params = Params { n, w, k };
 
+    let hg = simd_minimizers_bench::read_human_genome(1);
+    let packed_seq = hg.slice(0..n);
     let v2 = &mut vec![];
     {
         // warmup

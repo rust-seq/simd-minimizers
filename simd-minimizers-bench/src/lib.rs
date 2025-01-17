@@ -44,7 +44,7 @@ impl Max for u64 {
     const MAX: u64 = u64::MAX;
 }
 
-pub fn read_human_genome() -> PackedSeqVec {
+pub fn read_human_genome(chromosomes: usize) -> PackedSeqVec {
     eprintln!("Reading..");
     let start = std::time::Instant::now();
     let mut packed_text = PackedSeqVec::default();
@@ -52,6 +52,7 @@ pub fn read_human_genome() -> PackedSeqVec {
         eprintln!("Did not find human-genome.fa. Add/symlink it to test runtime on it.");
         return PackedSeqVec::default();
     };
+    let mut i = 0;
     while let Some(r) = reader.next() {
         let r = r.unwrap();
         eprintln!(
@@ -60,6 +61,10 @@ pub fn read_human_genome() -> PackedSeqVec {
             r.raw_seq().len()
         );
         packed_text.push_ascii(r.raw_seq());
+        i += 1;
+        if i == chromosomes {
+            break;
+        }
     }
     eprintln!("Reading & packing took {:?}", start.elapsed());
     packed_text

@@ -41,11 +41,11 @@ fn test_nthash<const RC: bool>() {
         let naive = ascii_seq
             .0
             .windows(k)
-            .map(|seq| hash_kmer::<RC>(AsciiSeq(seq)))
+            .map(|seq| nthash_kmer::<RC>(AsciiSeq(seq)))
             .collect::<Vec<_>>();
-        let scalar_ascii = hash_seq_scalar::<RC>(ascii_seq, k).collect::<Vec<_>>();
-        let scalar_packed = hash_seq_scalar::<RC>(packed_seq, k).collect::<Vec<_>>();
-        let simd_packed = collect(hash_seq_simd::<RC>(packed_seq, k, 1));
+        let scalar_ascii = nthash_seq_scalar::<RC>(ascii_seq, k).collect::<Vec<_>>();
+        let scalar_packed = nthash_seq_scalar::<RC>(packed_seq, k).collect::<Vec<_>>();
+        let simd_packed = collect(nthash_seq_simd::<RC>(packed_seq, k, 1));
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
@@ -80,8 +80,8 @@ fn nthash_canonical_is_revcomp() {
         for len in (0..100).chain(once(1024 * 32)) {
             let seq = seq.slice(0..len);
             let seq_rc = seq_rc.slice(seq_rc.len() - len..seq_rc.len());
-            let scalar = hash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
-            let scalar_rc = hash_seq_scalar::<true>(seq_rc, k).collect::<Vec<_>>();
+            let scalar = nthash_seq_scalar::<true>(seq, k).collect::<Vec<_>>();
+            let scalar_rc = nthash_seq_scalar::<true>(seq_rc, k).collect::<Vec<_>>();
             let scalar_rc_rc = scalar_rc.iter().rev().copied().collect_vec();
             assert_eq!(
                 scalar_rc_rc,

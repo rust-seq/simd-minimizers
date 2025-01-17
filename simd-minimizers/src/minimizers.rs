@@ -5,7 +5,7 @@ use crate::{canonical, nthash::Captures};
 
 use super::{
     canonical::canonical_mapper,
-    nthash::{hash_mapper, hash_seq_scalar},
+    nthash::{nthash_mapper, nthash_seq_scalar},
     sliding_min::{sliding_lr_min_mapper, sliding_min_mapper, sliding_min_scalar},
 };
 use itertools::Itertools;
@@ -13,7 +13,7 @@ use packed_seq::{Seq, S};
 
 /// Returns the minimizer of a window using a naive linear scan.
 pub fn minimizer<'s>(seq: impl Seq<'s>, k: usize) -> usize {
-    hash_seq_scalar::<false>(seq, k)
+    nthash_seq_scalar::<false>(seq, k)
         .map(|x| x & 0xffff_0000)
         .position_min()
         .unwrap()
@@ -29,7 +29,7 @@ pub fn minimizers_seq_scalar<'s>(
     k: usize,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
-    let it = hash_seq_scalar::<false>(seq, k);
+    let it = nthash_seq_scalar::<false>(seq, k);
     sliding_min_scalar::<true>(it, w)
 }
 
@@ -49,7 +49,7 @@ pub fn minimizers_seq_simd<'s>(
 
     let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut nthash = hash_mapper::<false>(k, w);
+    let mut nthash = nthash_mapper::<false>(k, w);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
@@ -75,7 +75,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
     // true: canonical
-    let kmer_hashes = hash_seq_scalar::<true>(seq, k);
+    let kmer_hashes = nthash_seq_scalar::<true>(seq, k);
     // true: leftmost
     let left = sliding_min_scalar::<true>(kmer_hashes.clone(), w);
     // false: rightmost
@@ -107,7 +107,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     // while canonical first drops the character, so has l without -1.
     let (add_remove, tail) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
-    let mut nthash = hash_mapper::<true>(k, w);
+    let mut nthash = nthash_mapper::<true>(k, w);
     let mut canonical = canonical_mapper(k, w);
     let mut sliding_min = sliding_lr_min_mapper(w, k, add_remove.len());
 

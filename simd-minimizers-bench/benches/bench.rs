@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
-use simd_minimizers::{minimizers::*, nthash::hash_seq_simd};
+use simd_minimizers::{minimizers::*, nthash::nthash_seq_simd};
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};
 
@@ -265,13 +265,13 @@ fn local_nthash(c: &mut Criterion) {
 
     let packed_text = PackedSeq { seq: packed_text, offset: 0, len: packed_text.len() * 4 };
     g.bench_with_input("nthash_simd_it_sum", &packed_text, |b, packed_text| {
-        b.iter(|| hash_seq_simd::<false>(*packed_text, k, 1).0.sum::<S>());
+        b.iter(|| nthash_seq_simd::<false>(*packed_text, k, 1).0.sum::<S>());
     });
     g.bench_with_input("nthash_simd_it_vec", &packed_text, |b, packed_text| {
-        b.iter(|| hash_seq_simd::<false>(*packed_text, k, 1).0.collect_vec());
+        b.iter(|| nthash_seq_simd::<false>(*packed_text, k, 1).0.collect_vec());
     });
     g.bench_with_input("nthash_simd_it_sum_c", &packed_text, |b, packed_text| {
-        b.iter(|| hash_seq_simd::<true>(*packed_text, k, 1).0.sum::<S>());
+        b.iter(|| nthash_seq_simd::<true>(*packed_text, k, 1).0.sum::<S>());
     });
 }
 

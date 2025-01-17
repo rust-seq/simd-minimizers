@@ -14,7 +14,7 @@ pub struct RescanDaniel {
 impl Minimizer for RescanDaniel {
     fn window_minimizers(&mut self, text: &[u8]) -> Vec<usize> {
         let mut minimizers = Vec::new();
-        minimizers_callback::<false>(text, self.w + self.k - 1, self.k, |idx| {
+        minimizers_callback::<false, false>(text, self.w + self.k - 1, self.k, |idx| {
             minimizers.push(idx);
         });
         minimizers
@@ -33,8 +33,18 @@ static LUT: [T; 128] = {
     l
 };
 
+const C: T = 0x517cc1b727220a95u64 as T;
+
+fn lookup<const MUL: bool>(b: u8) -> T {
+    if MUL {
+        b as T * C
+    } else {
+        LUT[b as usize]
+    }
+}
+
 /// Robust winnowing.
-pub fn minimizers_callback<const DEDUP: bool>(
+pub fn minimizers_callback<const DEDUP: bool, const MUL: bool>(
     s: &[u8],
     l: usize,
     k: usize,
@@ -46,15 +56,15 @@ pub fn minimizers_callback<const DEDUP: bool>(
 
     for (i, win) in s.windows(l).enumerate() {
         if i == 0 || i > min_idx {
-            let (m_idx, m, c) = minimum(win, k);
+            let (m_idx, m, c) = minimum::<MUL>(win, k);
             min_idx = i + m_idx;
             min = m;
             curr = c;
             f(min_idx);
         } else {
             curr = curr.rotate_left(1)
-                ^ LUT[win[l - 1 - k] as usize].rotate_left(k as u32)
-                ^ LUT[win[l - 1] as usize];
+                ^ lookup::<MUL>(win[l - 1 - k]).rotate_left(k as u32)
+                ^ lookup::<MUL>(win[l - 1]);
             let h = curr;
 
             if h < min {
@@ -72,18 +82,18 @@ pub fn minimizers_callback<const DEDUP: bool>(
 }
 
 /// Get the leftmost minimum kmer.
-fn minimum(s: &[u8], k: usize) -> (usize, T, T) {
+fn minimum<const MUL: bool>(s: &[u8], k: usize) -> (usize, T, T) {
     let mut curr = 0;
 
     for (i, &b) in s[..k].iter().enumerate() {
-        curr ^= LUT[b as usize].rotate_left((k - 1 - i) as u32);
+        curr ^= lookup::<MUL>(b).rotate_left((k - 1 - i) as u32);
     }
 
     let mut min = curr;
     let mut min_idx = 0;
 
     for (i, &b) in s[k..].iter().enumerate() {
-        curr = curr.rotate_left(1) ^ LUT[s[i] as usize].rotate_left(k as u32) ^ LUT[b as usize];
+        curr = curr.rotate_left(1) ^ lookup::<MUL>(s[i]).rotate_left(k as u32) ^ lookup::<MUL>(b);
         let h = curr;
 
         // This was changed from <= to < to ensure the leftmost minimum is returned.

@@ -212,7 +212,13 @@ fn bench_minimizers<H: CharHasher>(w: usize, k: usize) {
         v2.clear();
         time("rescan-daniel", params, || {
             v2.clear();
-            minimizers_callback::<true>(plain_seq, k + w - 1, k, |pos| {
+            minimizers_callback::<true, false>(plain_seq, k + w - 1, k, |pos| {
+                v2.push(pos as u32);
+            });
+        });
+        time("mul rescan-daniel", params, || {
+            v2.clear();
+            minimizers_callback::<true, true>(plain_seq, k + w - 1, k, |pos| {
                 v2.push(pos as u32);
             });
         });

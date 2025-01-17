@@ -97,6 +97,32 @@ fn nthash_canonical_is_revcomp() {
 }
 
 #[test]
+fn test_anti_lex_hash() {
+    use anti_lex::*;
+    test_on_inputs(|k, w, ascii_seq, packed_seq| {
+        if w > 1 {
+            return;
+        }
+        // naive
+        let naive = ascii_seq
+            .0
+            .windows(k)
+            .map(|seq| anti_lex_hash_kmer(AsciiSeq(seq)))
+            .collect::<Vec<_>>();
+        // scalar ascii
+        let scalar_ascii = anti_lex_hash_seq_scalar(ascii_seq, k).collect::<Vec<_>>();
+        // scalar packed
+        let scalar_packed = anti_lex_hash_seq_scalar(packed_seq, k).collect::<Vec<_>>();
+        // simd packed
+        let simd_packed = collect::collect(anti_lex_hash_seq_simd(packed_seq, k, 1));
+        let len = ascii_seq.len();
+        assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
+        assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
+        assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
+    });
+}
+
+#[test]
 fn minimizers_fwd() {
     test_on_inputs(|k, w, ascii_seq, packed_seq| {
         let naive = ascii_seq

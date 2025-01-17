@@ -79,6 +79,7 @@ mod intrinsics;
 mod transpose;
 
 // Public modules.
+pub mod anti_lex;
 pub mod canonical;
 pub mod collect;
 pub mod minimizers;
@@ -94,7 +95,6 @@ pub use wide::u32x8;
 mod test;
 
 // TODO: Old and in-development modules.
-// mod anti_lex;
 // mod linearize;
 
 use collect::collect_and_dedup_into;

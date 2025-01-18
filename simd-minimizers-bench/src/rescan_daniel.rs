@@ -1,3 +1,5 @@
+use std::arch::asm;
+
 use super::*;
 
 /// This implementation is mostly copied from Daniel Liu's gist:
@@ -24,8 +26,8 @@ impl Minimizer for RescanDaniel {
 type T = u64;
 
 /// ntHash constants.
-static LUT: [T; 128] = {
-    let mut l = [0; 128];
+static LUT: [T; 256] = {
+    let mut l = [0; 256];
     l[b'A' as usize] = 0x3c8bfbb395c60474u64 as T;
     l[b'C' as usize] = 0x3193c18562a02b4cu64 as T;
     l[b'G' as usize] = 0x20323ed082572324u64 as T;
@@ -39,9 +41,11 @@ fn lookup<const MUL: bool>(b: u8) -> T {
     if MUL {
         b as T * C
     } else {
-        // Checked, because unchecked causes vectorization
-        // into slow `gather` instructions :(
-        LUT[b as usize]
+        unsafe {
+            // Prevent auto-vectorization.
+            asm!("");
+            *LUT.get_unchecked(b as usize)
+        }
     }
 }
 

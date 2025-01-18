@@ -3,8 +3,11 @@ use packed_seq::{unpack, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, Se
 use rand::Rng;
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions, mul_hash,
-    nthash::{nthash_mapper, NtHasher},
-    sliding_min::sliding_min_mapper,
+    private::{
+        nthash::{self, nthash_mapper, NtHasher},
+        sliding_min::sliding_min_mapper,
+        *,
+    },
 };
 use simd_minimizers_bench::*;
 use std::hint::black_box;
@@ -67,13 +70,13 @@ fn bench_minimizers(w: usize, k: usize) {
         v.extend(packed_seq.par_iter_bp(k + w - 1).0);
         v.clear();
 
-        simd_minimizers::collect::collect_into(
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+        collect::collect_into(
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
             v2,
         );
         v2.clear();
-        simd_minimizers::collect::collect_and_dedup_into::<false>(
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+        collect::collect_and_dedup_into::<false>(
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
             v2,
         );
         v2.clear();
@@ -111,16 +114,16 @@ fn bench_minimizers(w: usize, k: usize) {
                 .map(|(a, r)| a + r)
         });
         time_v(v, "nthash", params, || {
-            simd_minimizers::nthash::nthash_seq_simd::<false, PackedSeq, H>(packed_seq, k, w).0
+            nthash::nthash_seq_simd::<false, PackedSeq, H>(packed_seq, k, w).0
         });
         time_v(v, "sliding_min", params, || {
-            simd_minimizers::minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w).0
+            minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w).0
         });
 
         time("fwd-collect", params, || {
             v2.clear();
-            simd_minimizers::collect::collect_into(
-                simd_minimizers::minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w),
+            collect::collect_into(
+                minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w),
                 v2,
             )
         });
@@ -138,15 +141,13 @@ fn bench_minimizers(w: usize, k: usize) {
             add_remove.map(move |(a, rk)| sliding_min(nthash((a, rk))))
         });
         time_v(v, "canonical-strand", params, || {
-            simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w).0
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w).0
         });
 
         time("canonical-collect", params, || {
             v2.clear();
-            simd_minimizers::collect::collect_into(
-                simd_minimizers::minimizers::canonical_minimizers_seq_simd::<_, H>(
-                    packed_seq, k, w,
-                ),
+            collect::collect_into(
+                minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
                 v2,
             )
         });

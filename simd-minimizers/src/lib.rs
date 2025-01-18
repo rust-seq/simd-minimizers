@@ -78,25 +78,44 @@ mod dedup;
 mod intrinsics;
 mod transpose;
 
-// Public modules.
-pub mod anti_lex;
-pub mod canonical;
-pub mod collect;
-pub mod minimizers;
-pub mod nthash;
-pub mod sliding_min;
-
-use nthash::{CharHasher, MulHasher, NtHasher};
-/// Re-export of the `packed-seq` crate.
-pub use packed_seq;
-/// Re-export of the underlying SIMD type.
-pub use wide::u32x8;
+// Re-exported modules.
+mod anti_lex;
+mod canonical;
+mod collect;
+mod minimizers;
+mod nthash;
+mod sliding_min;
 
 #[cfg(test)]
 mod test;
 
 // TODO: Old and in-development modules.
 // mod linearize;
+
+/// Re-exported internals. Not part of the server-compatible stable API.
+pub mod private {
+    pub mod anti_lex {
+        pub use crate::anti_lex::*;
+    }
+    pub mod canonical {
+        pub use crate::canonical::*;
+    }
+    pub mod collect {
+        pub use crate::collect::*;
+    }
+    pub mod minimizers {
+        pub use crate::minimizers::*;
+    }
+    pub mod nthash {
+        pub use crate::nthash::*;
+    }
+    pub mod sliding_min {
+        pub use crate::sliding_min::*;
+    }
+}
+
+/// Re-export of the `packed-seq` crate.
+pub use packed_seq;
 
 use collect::collect_and_dedup_into;
 use itertools::Itertools;

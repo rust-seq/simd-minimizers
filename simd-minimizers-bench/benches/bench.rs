@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
-use simd_minimizers::{
+use simd_minimizers::private::{
     minimizers::*,
     nthash::{nthash_seq_simd, NtHasher},
 };

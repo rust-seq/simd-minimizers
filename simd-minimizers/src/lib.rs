@@ -126,6 +126,23 @@ use minimizers::{
 use nthash::{MulHasher, NtHasher};
 use packed_seq::Seq;
 
+/// Minimizer of a single window.
+pub fn one_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
+    if S::BITS_PER_CHAR == 2 {
+        minimizers::minimizer::<NtHasher>(seq, k)
+    } else {
+        minimizers::minimizer::<MulHasher>(seq, k)
+    }
+}
+/// Minimizer of a single window.
+pub fn one_caononical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
+    if S::BITS_PER_CHAR == 2 {
+        minimizers::minimizer::<NtHasher>(seq, k)
+    } else {
+        minimizers::minimizer::<MulHasher>(seq, k)
+    }
+}
+
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
@@ -218,4 +235,3 @@ pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
 }
 
 // TODO: Make scalar methods return an iterator.
-// TODO: Single-window minimizer.

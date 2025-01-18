@@ -207,49 +207,41 @@ fn minimizers_canonical() {
 
 #[test]
 fn minimizer_positions() {
-    fn f<H: CharHasher>() {
-        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-            let mut scalar_ascii = vec![];
-            minimizer_positions_scalar::<H>(ascii_seq, k, w, &mut scalar_ascii);
-            let mut scalar_packed = vec![];
-            minimizer_positions_scalar::<H>(packed_seq, k, w, &mut scalar_packed);
-            let mut simd_ascii = vec![];
-            super::minimizer_positions::<H>(ascii_seq, k, w, &mut simd_ascii);
-            let mut simd_packed = vec![];
-            super::minimizer_positions::<H>(packed_seq, k, w, &mut simd_packed);
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        let mut scalar_ascii = vec![];
+        minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
+        let mut scalar_packed = vec![];
+        minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        let mut simd_ascii = vec![];
+        super::minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
+        let mut simd_packed = vec![];
+        super::minimizer_positions(packed_seq, k, w, &mut simd_packed);
 
-            let len = ascii_seq.len();
-            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-        });
-    }
-    f::<NtHasher>();
-    f::<MulHasher>();
+        let len = ascii_seq.len();
+        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+    });
 }
 
 #[test]
 fn canonical_minimizer_positions() {
-    fn f<H: CharHasher>() {
-        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-            if (k + w - 1) % 2 == 0 {
-                return;
-            }
-            let mut scalar_ascii = vec![];
-            canonical_minimizer_positions_scalar::<H>(ascii_seq, k, w, &mut scalar_ascii);
-            let mut scalar_packed = vec![];
-            canonical_minimizer_positions_scalar::<H>(packed_seq, k, w, &mut scalar_packed);
-            let mut simd_ascii = vec![];
-            super::canonical_minimizer_positions::<H>(ascii_seq, k, w, &mut simd_ascii);
-            let mut simd_packed = vec![];
-            super::canonical_minimizer_positions::<H>(packed_seq, k, w, &mut simd_packed);
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        if (k + w - 1) % 2 == 0 {
+            return;
+        }
+        let mut scalar_ascii = vec![];
+        canonical_minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
+        let mut scalar_packed = vec![];
+        canonical_minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        let mut simd_ascii = vec![];
+        super::canonical_minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
+        let mut simd_packed = vec![];
+        super::canonical_minimizer_positions(packed_seq, k, w, &mut simd_packed);
 
-            let len = ascii_seq.len();
-            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-        });
-    }
-    f::<NtHasher>();
-    f::<MulHasher>();
+        let len = ascii_seq.len();
+        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+    });
 }

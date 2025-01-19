@@ -16,7 +16,7 @@ DF = pd.read_json("results.json")
 # DF = pd.read_json("results-neon.json")
 
 
-DF["canonical"] = DF["name"].apply(lambda x: x.startswith("canonical "))
+DF["canonical"] = DF["name"].apply(lambda x: "canonical " in x)
 DF["name"] = DF["name"].str.replace("canonical ", "")
 
 print(tabulate.tabulate(DF, headers=DF.columns, tablefmt="orgtbl", floatfmt=".2f"))

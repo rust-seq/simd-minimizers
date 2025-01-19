@@ -57,9 +57,7 @@ fn bench_minimizers(w: usize, k: usize) {
     let packed_seq = PackedSeqVec::from_ascii(&ascii_seq.seq);
     let packed_seq = packed_seq.as_slice();
 
-    eprintln!("Minimizers w = {w} k = {k}");
-
-    eprintln!("\nSIMD\n");
+    eprintln!("\nMinimizers w = {w} k = {k}");
 
     type H = NtHasher;
 
@@ -83,7 +81,9 @@ fn bench_minimizers(w: usize, k: usize) {
     }
 
     // INCREMENTAL
-    if true {
+    if k == 21 {
+        eprintln!("\nIncremental\n");
+
         EXPERIMENT.with(|e| {
             *e.borrow_mut() = "incremental".to_string();
         });
@@ -180,6 +180,35 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         let seq = packed_seq.iter_bp().map(|x| unpack(x)).collect_vec();
         let ascii_seq = AsciiSeq(&seq);
+
+        if false {
+            let mut packed_seq = PackedSeqVec::from_ascii(&seq);
+            time("pack simd-minimizer", params, || {
+                v2.clear();
+                packed_seq.len = 0;
+                packed_seq.push_ascii(&seq);
+                minimizer_positions(packed_seq.as_slice(), k, w, v2);
+            });
+            time("pack canonical simd-minimizer", params, || {
+                v2.clear();
+                packed_seq.len = 0;
+                packed_seq.push_ascii(&seq);
+                canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
+            });
+            time("pack mul simd-minimizer", params, || {
+                v2.clear();
+                packed_seq.len = 0;
+                packed_seq.push_ascii(&seq);
+                mul_hash::minimizer_positions(packed_seq.as_slice(), k, w, v2);
+            });
+            time("pack mul canonical simd-minimizer", params, || {
+                v2.clear();
+                packed_seq.len = 0;
+                packed_seq.push_ascii(&seq);
+                mul_hash::canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
+            });
+        }
+
         time("ascii-dna simd-minimizer", params, || {
             v2.clear();
             minimizer_positions(ascii_seq, k, w, v2);
@@ -206,6 +235,35 @@ fn bench_minimizers(w: usize, k: usize) {
             v2.clear();
             mul_hash::canonical_minimizer_positions(&seq[..], k, w, v2);
         });
+    }
+
+    //
+    if true {
+        eprintln!("\nENGLISH\n");
+        let seq = &std::fs::read("english.200MB").unwrap()[..n];
+
+        time("ascii mul simd-minimizer EN", params, || {
+            v2.clear();
+            mul_hash::minimizer_positions(seq, k, w, v2);
+        });
+        time("ascii mul canonical simd-minimizer EN", params, || {
+            v2.clear();
+            mul_hash::canonical_minimizer_positions(seq, k, w, v2);
+        });
+        eprintln!("#minis: {}", v2.len());
+
+        eprintln!("\nSOURCES\n");
+        let seq = &std::fs::read("sources.200MB").unwrap()[..n];
+
+        time("ascii mul simd-minimizer SRC", params, || {
+            v2.clear();
+            mul_hash::minimizer_positions(seq, k, w, v2);
+        });
+        time("ascii mul canonical simd-minimizer SRC", params, || {
+            v2.clear();
+            mul_hash::canonical_minimizer_positions(seq, k, w, v2);
+        });
+        eprintln!("#minis: {}", v2.len());
     }
 
     if false {

@@ -1,4 +1,4 @@
-use std::arch::asm;
+use std::hint::black_box;
 
 use super::*;
 
@@ -43,7 +43,7 @@ fn lookup<const MUL: bool>(b: u8) -> T {
     } else {
         unsafe {
             // Prevent auto-vectorization.
-            asm!("");
+            black_box(());
             *LUT.get_unchecked(b as usize)
         }
     }

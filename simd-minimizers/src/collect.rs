@@ -103,12 +103,8 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
     ),
     out_vec: &mut Vec<u32>,
 ) {
-    let len = par_head.len();
     CACHE.with(|v| {
         let mut v = v.borrow_mut();
-        for x in v.iter_mut() {
-            x.resize(len, 0);
-        }
 
         let mut write_idx = [0; 8];
         // Vec of last pushed elements in each lane.
@@ -135,6 +131,10 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
                     } else {
                         lane
                     };
+                    if write_idx[j] + 8 > v[j].len() {
+                        let new_len = v[j].len() + 1024;
+                        v[j].resize(new_len, 0);
+                    }
                     unsafe {
                         append_unique_vals(
                             old[j],

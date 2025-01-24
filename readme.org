@@ -2,7 +2,17 @@
 
 See =./simd-minimizers= for the main crate.
 
-Usage example:
+** Requirements
+
+If you have not installed Rust yet, please visit [[https://rustup.rs/][rustup.rs]] to install it.
+
+This library supports AVX2 and NEON instruction sets.
+Make sure to set ~RUSTFLAGS="-C target-cpu=native"~ when compiling to use the instruction sets available on your architecture.
+#+begin_src sh
+RUSTFLAGS="-C target-cpu=native" cargo run --release
+#+end_src
+
+** Usage example
 #+begin_src rust
 // Packed SIMD version.
 use packed_seq::{complement_char, PackedSeqVec, SeqVec};

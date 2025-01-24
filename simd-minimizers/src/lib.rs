@@ -135,7 +135,7 @@ pub fn one_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
     }
 }
 /// Minimizer of a single window.
-pub fn one_caononical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
+pub fn one_canonical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
     if S::BITS_PER_CHAR == 2 {
         minimizers::minimizer::<NtHasher>(seq, k)
     } else {

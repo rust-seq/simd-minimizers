@@ -21,8 +21,6 @@ impl Hasher for NtHash {
     }
 }
 
-pub(crate) const MAXIMUM_K_SIZE: usize = u32::max_value() as usize;
-
 const H_LOOKUP: [u64; 256] = {
     let mut lookup = [1; 256];
     lookup[b'A' as usize] = 0x3c8b_fbb3_95c6_0474;

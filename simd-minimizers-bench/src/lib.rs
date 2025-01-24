@@ -8,6 +8,10 @@ pub mod hash;
 pub mod jumping;
 pub mod minimizer;
 pub mod naive;
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature = "avx"
+))]
 pub mod nthash;
 pub mod queue;
 pub mod queue_igor;
@@ -22,6 +26,10 @@ pub use hash::*;
 pub use jumping::*;
 pub use minimizer::*;
 pub use naive::*;
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature = "avx"
+))]
 pub use nthash::*;
 pub use queue::*;
 pub use queue_igor::*;
@@ -32,6 +40,8 @@ pub use sliding_min::*;
 pub use split::*;
 
 use packed_seq::{PackedSeqVec, SeqVec};
+
+pub(crate) const MAXIMUM_K_SIZE: usize = u32::max_value() as usize;
 
 pub trait Max {
     const MAX: Self;

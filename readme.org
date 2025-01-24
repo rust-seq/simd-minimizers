@@ -32,5 +32,13 @@ assert_eq!(minimizer_positions, vec![3, 5, 12]);
 
 =simd-minimizers-bench/src/bin/paper.rs= contains benchmarks used in the paper.
 
-To replicate results from the paper, go into =simd-minimizers-bench= and do
-=cargo run --release= followed by =python eval.py=.
+Note that the benchmarks require some nightly features, you can install the latest nightly version with
+#+begin_src sh
+rustup install nightly
+#+end_src
+
+To replicate results from the paper, go into =simd-minimizers-bench= and run
+#+begin_src sh
+RUSTFLAGS="-C target-cpu=native" cargo +nightly run --release
+python eval.py
+#+end_src

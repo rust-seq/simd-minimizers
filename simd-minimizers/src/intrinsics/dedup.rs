@@ -1,5 +1,4 @@
 use crate::S;
-use core::arch::x86_64::__m256i;
 use core::mem::transmute;
 
 const L: usize = 256 / 32;
@@ -46,7 +45,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
 
         let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
         let numberofnewvalues = L - m.count_ones() as usize;
-        let key = UNIQSHUF[m];
+        let key = transmute(UNIQSHUF[m]);
         let val = _mm256_permutevar8x32_epi32(vals, key);
         _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
         *write_idx += numberofnewvalues;
@@ -64,6 +63,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
 pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
         use core::arch::aarch64::{vpaddd_u64, vpaddlq_u32, vqtbl2q_u8, vst1_u32_x4};
+        use wide::u32x4;
 
         let new_old_mask = S::new([
             u32::MAX,
@@ -109,7 +109,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
 /// For each of 256 masks of which elements are different than their predecessor,
 /// a shuffle that sends those new elements to the beginning.
 #[rustfmt::skip]
-const UNIQSHUF: [__m256i; 256] = unsafe {transmute([
+const UNIQSHUF: [S; 256] = unsafe {transmute([
 0,1,2,3,4,5,6,7,
 1,2,3,4,5,6,7,0,
 0,2,3,4,5,6,7,0,

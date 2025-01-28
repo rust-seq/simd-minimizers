@@ -3,6 +3,13 @@
 use wide::u32x4;
 use wide::u32x8 as S;
 
+/// Transpose a matrix of 8 SIMD vectors.
+/// <https://stackoverflow.com/questions/25622745/transpose-an-8x8-float-using-avx-avx2>
+// TODO: Investigate other transpose functions mentioned there?
+pub fn transpose(m: [S; 8]) -> [S; 8] {
+    _transpose(m)
+}
+
 /// A utility function for creating masks to use with Intel shuffle and
 /// permute intrinsics.
 ///
@@ -11,141 +18,119 @@ const fn _mm_shuffle(z: u32, y: u32, x: u32, w: u32) -> i32 {
     ((z << 6) | (y << 4) | (x << 2) | w) as i32
 }
 
-/// Transpose a matrix of 8 SIMD vectors.
-/// https://stackoverflow.com/questions/25622745/transpose-an-8x8-float-using-avx-avx2
-///
-/// TODO: Investigate other transpose functions mentioned there?
+// NOTE: AVX is sufficient here. AVX2 is not needed.
 #[inline(always)]
-#[cfg(all(
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "avx"
-))]
-unsafe fn transpose_avx(m: [S; 8]) -> [S; 8] {
-    #[cfg(target_arch = "x86")]
-    use core::arch::x86::*;
-    #[cfg(target_arch = "x86_64")]
-    use core::arch::x86_64::*;
-    use core::mem::transmute;
-
-    let m: [__m256; 8] = transmute(m);
-    let x0 = _mm256_unpacklo_ps(m[0], m[1]);
-    let x1 = _mm256_unpackhi_ps(m[0], m[1]);
-    let x2 = _mm256_unpacklo_ps(m[2], m[3]);
-    let x3 = _mm256_unpackhi_ps(m[2], m[3]);
-    let x4 = _mm256_unpacklo_ps(m[4], m[5]);
-    let x5 = _mm256_unpackhi_ps(m[4], m[5]);
-    let x6 = _mm256_unpacklo_ps(m[6], m[7]);
-    let x7 = _mm256_unpackhi_ps(m[6], m[7]);
-    let y0 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(1, 0, 1, 0));
-    let y1 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(3, 2, 3, 2));
-    let y2 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(1, 0, 1, 0));
-    let y3 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(3, 2, 3, 2));
-    let y4 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(1, 0, 1, 0));
-    let y5 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(3, 2, 3, 2));
-    let y6 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(1, 0, 1, 0));
-    let y7 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(3, 2, 3, 2));
-    let mut t: [__m256; 8] = [transmute([0; 8]); 8];
-    t[0] = _mm256_permute2f128_ps(y0, y4, 0x20);
-    t[1] = _mm256_permute2f128_ps(y1, y5, 0x20);
-    t[2] = _mm256_permute2f128_ps(y2, y6, 0x20);
-    t[3] = _mm256_permute2f128_ps(y3, y7, 0x20);
-    t[4] = _mm256_permute2f128_ps(y0, y4, 0x31);
-    t[5] = _mm256_permute2f128_ps(y1, y5, 0x31);
-    t[6] = _mm256_permute2f128_ps(y2, y6, 0x31);
-    t[7] = _mm256_permute2f128_ps(y3, y7, 0x31);
-    transmute(t)
-}
-
-#[inline(always)]
-#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-unsafe fn transpose_neon(m: [S; 8]) -> [S; 8] {
-    use core::mem::transmute;
-
-    let m: [u32x4; 16] = transmute(m);
-    let t11 = transpose_4x4_neon(
-        *m.get_unchecked(0),
-        *m.get_unchecked(2),
-        *m.get_unchecked(4),
-        *m.get_unchecked(6),
-    );
-    let t21 = transpose_4x4_neon(
-        *m.get_unchecked(1),
-        *m.get_unchecked(3),
-        *m.get_unchecked(5),
-        *m.get_unchecked(7),
-    );
-    let t12 = transpose_4x4_neon(
-        *m.get_unchecked(8),
-        *m.get_unchecked(10),
-        *m.get_unchecked(12),
-        *m.get_unchecked(14),
-    );
-    let t22 = transpose_4x4_neon(
-        *m.get_unchecked(9),
-        *m.get_unchecked(11),
-        *m.get_unchecked(13),
-        *m.get_unchecked(15),
-    );
-
-    transmute((
-        *t11.get_unchecked(0),
-        *t12.get_unchecked(0),
-        *t11.get_unchecked(1),
-        *t12.get_unchecked(1),
-        *t11.get_unchecked(2),
-        *t12.get_unchecked(2),
-        *t11.get_unchecked(3),
-        *t12.get_unchecked(3),
-        *t21.get_unchecked(0),
-        *t22.get_unchecked(0),
-        *t21.get_unchecked(1),
-        *t22.get_unchecked(1),
-        *t21.get_unchecked(2),
-        *t22.get_unchecked(2),
-        *t21.get_unchecked(3),
-        *t22.get_unchecked(3),
-    ))
-}
-
-#[inline(always)]
-#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-unsafe fn transpose_4x4_neon(m0: u32x4, m1: u32x4, m2: u32x4, m3: u32x4) -> [u32x4; 4] {
-    use core::arch::aarch64::vzipq_u32;
-    use core::mem::transmute;
-
-    let x = vzipq_u32(transmute(m0), transmute(m2));
-    let y = vzipq_u32(transmute(m1), transmute(m3));
-    transmute((vzipq_u32(x.0, y.0), vzipq_u32(x.1, y.1)))
-}
-
-#[inline(always)]
-unsafe fn transpose_fallback(m: [S; 8]) -> [S; 8] {
-    let m = m.map(|v| v.to_array());
-    [0, 1, 2, 3, 4, 5, 6, 7].map(|i| S::new(m.map(|v| *v.get_unchecked(i))))
-}
-
-#[inline(always)]
-pub fn transpose(m: [S; 8]) -> [S; 8] {
-    #[cfg(all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "avx"
-    ))]
+#[cfg(target_feature = "avx")]
+fn _transpose(m: [S; 8]) -> [S; 8] {
     unsafe {
-        transpose_avx(m)
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::*;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::*;
+        use core::mem::transmute;
+
+        let m: [__m256; 8] = transmute(m);
+        let x0 = _mm256_unpacklo_ps(m[0], m[1]);
+        let x1 = _mm256_unpackhi_ps(m[0], m[1]);
+        let x2 = _mm256_unpacklo_ps(m[2], m[3]);
+        let x3 = _mm256_unpackhi_ps(m[2], m[3]);
+        let x4 = _mm256_unpacklo_ps(m[4], m[5]);
+        let x5 = _mm256_unpackhi_ps(m[4], m[5]);
+        let x6 = _mm256_unpacklo_ps(m[6], m[7]);
+        let x7 = _mm256_unpackhi_ps(m[6], m[7]);
+        let y0 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(1, 0, 1, 0));
+        let y1 = _mm256_shuffle_ps(x0, x2, _mm_shuffle(3, 2, 3, 2));
+        let y2 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(1, 0, 1, 0));
+        let y3 = _mm256_shuffle_ps(x1, x3, _mm_shuffle(3, 2, 3, 2));
+        let y4 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(1, 0, 1, 0));
+        let y5 = _mm256_shuffle_ps(x4, x6, _mm_shuffle(3, 2, 3, 2));
+        let y6 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(1, 0, 1, 0));
+        let y7 = _mm256_shuffle_ps(x5, x7, _mm_shuffle(3, 2, 3, 2));
+        let mut t: [__m256; 8] = [transmute([0; 8]); 8];
+        t[0] = _mm256_permute2f128_ps(y0, y4, 0x20);
+        t[1] = _mm256_permute2f128_ps(y1, y5, 0x20);
+        t[2] = _mm256_permute2f128_ps(y2, y6, 0x20);
+        t[3] = _mm256_permute2f128_ps(y3, y7, 0x20);
+        t[4] = _mm256_permute2f128_ps(y0, y4, 0x31);
+        t[5] = _mm256_permute2f128_ps(y1, y5, 0x31);
+        t[6] = _mm256_permute2f128_ps(y2, y6, 0x31);
+        t[7] = _mm256_permute2f128_ps(y3, y7, 0x31);
+        transmute(t)
     }
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+}
+
+#[inline(always)]
+#[cfg(all(target_feature = "neon"))]
+fn _transpose(m: [S; 8]) -> [S; 8] {
     unsafe {
-        transpose_neon(m)
+        use core::mem::transmute;
+
+        let m: [u32x4; 16] = transmute(m);
+        let t11 = transpose_4x4_neon(
+            *m.get_unchecked(0),
+            *m.get_unchecked(2),
+            *m.get_unchecked(4),
+            *m.get_unchecked(6),
+        );
+        let t21 = transpose_4x4_neon(
+            *m.get_unchecked(1),
+            *m.get_unchecked(3),
+            *m.get_unchecked(5),
+            *m.get_unchecked(7),
+        );
+        let t12 = transpose_4x4_neon(
+            *m.get_unchecked(8),
+            *m.get_unchecked(10),
+            *m.get_unchecked(12),
+            *m.get_unchecked(14),
+        );
+        let t22 = transpose_4x4_neon(
+            *m.get_unchecked(9),
+            *m.get_unchecked(11),
+            *m.get_unchecked(13),
+            *m.get_unchecked(15),
+        );
+
+        transmute((
+            *t11.get_unchecked(0),
+            *t12.get_unchecked(0),
+            *t11.get_unchecked(1),
+            *t12.get_unchecked(1),
+            *t11.get_unchecked(2),
+            *t12.get_unchecked(2),
+            *t11.get_unchecked(3),
+            *t12.get_unchecked(3),
+            *t21.get_unchecked(0),
+            *t22.get_unchecked(0),
+            *t21.get_unchecked(1),
+            *t22.get_unchecked(1),
+            *t21.get_unchecked(2),
+            *t22.get_unchecked(2),
+            *t21.get_unchecked(3),
+            *t22.get_unchecked(3),
+        ))
     }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "avx"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
+}
+
+#[inline(always)]
+#[cfg(target_feature = "neon")]
+fn transpose_4x4_neon(m0: u32x4, m1: u32x4, m2: u32x4, m3: u32x4) -> [u32x4; 4] {
     unsafe {
-        transpose_fallback(m)
+        use core::arch::aarch64::vzipq_u32;
+        use core::mem::transmute;
+
+        let x = vzipq_u32(transmute(m0), transmute(m2));
+        let y = vzipq_u32(transmute(m1), transmute(m3));
+        transmute((vzipq_u32(x.0, y.0), vzipq_u32(x.1, y.1)))
+    }
+}
+
+#[inline(always)]
+#[cfg(not(any(target_feature = "avx", target_feature = "neon")))]
+fn _transpose(m: [S; 8]) -> [S; 8] {
+    unsafe {
+        let m = m.map(|v| v.to_array());
+        [0, 1, 2, 3, 4, 5, 6, 7].map(|i| S::new(m.map(|v| *v.get_unchecked(i))))
     }
 }
 

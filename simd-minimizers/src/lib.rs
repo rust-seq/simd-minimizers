@@ -61,11 +61,8 @@
 #![cfg_attr(
     not(any(
         doc,
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "avx2"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon"),
+        target_feature = "avx2",
+        target_feature = "neon",
         feature = "hide-simd-warning"
     )),
     deprecated(

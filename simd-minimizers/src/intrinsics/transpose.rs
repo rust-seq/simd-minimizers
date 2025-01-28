@@ -60,7 +60,7 @@ fn _transpose(m: [S; 8]) -> [S; 8] {
 }
 
 #[inline(always)]
-#[cfg(all(target_feature = "neon"))]
+#[cfg(target_feature = "neon")]
 fn _transpose(m: [S; 8]) -> [S; 8] {
     unsafe {
         use core::mem::transmute;

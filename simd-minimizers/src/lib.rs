@@ -58,12 +58,17 @@
 //! For general ASCII sequences (`&[u8]`), `mulHash` is used instead, which instead multiplies each character value by a pseudo-random constant.
 //! The `mul_hash` module provides functions that _always_ use mulHash, also for DNA sequences.
 //!
-//! ## Features
+//! ## Performance
 //!
 //! This library depends on AVX2 or NEON SIMD instructions to achieve good performance.
 //! Make sure to compile with `-C target-cpu=native` to enable these instructions.
 //!
-//! If your system does not support these instructions, enable the `hide-simd-warning` feature to disable the compile warning that will be shown.
+//! All functions take a `out_vec: &mut Vec<u32>` parameter to which positions are _appended_.
+//! For best performance, re-use the same `out_vec` between invocations, and [`Vec::clear`] it before or after each call.
+//!
+//! ## Features
+//!
+//! - `hide-simd-warning`: If your system does not support AVX2 or NEON, enable this feature to disable the compile warning that will be shown.
 //!
 //! ## Examples
 //!

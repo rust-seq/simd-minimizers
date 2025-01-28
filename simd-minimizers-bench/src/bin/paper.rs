@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use packed_seq::{unpack, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
+use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
 use rand::Rng;
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions, mul_hash,
@@ -178,7 +178,7 @@ fn bench_minimizers(w: usize, k: usize) {
             v2.clear();
             mul_hash::canonical_minimizer_positions(packed_seq, k, w, v2);
         });
-        let seq = packed_seq.iter_bp().map(|x| unpack(x)).collect_vec();
+        let seq = packed_seq.iter_bp().map(|x| unpack_base(x)).collect_vec();
         let ascii_seq = AsciiSeq(&seq);
 
         if false {

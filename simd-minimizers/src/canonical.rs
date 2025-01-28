@@ -1,7 +1,8 @@
 //! Determine whether each window is canonical, when `#GT > #AC`.
 use std::mem::transmute;
 
-use packed_seq::{PackedSeq, Seq, S};
+use crate::S;
+use packed_seq::{PackedSeq, Seq};
 use wide::{i32x8, CmpGt};
 
 use crate::nthash::Captures;

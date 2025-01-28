@@ -1,10 +1,11 @@
 #![feature(portable_simd)]
 #![allow(dead_code)]
 use itertools::Itertools;
-use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, S};
+use packed_seq::{PackedSeq, PackedSeqVec, SeqVec};
 use simd_minimizers::private::{
     minimizers::*,
     nthash::{nthash_seq_simd, NtHasher},
+    S,
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, simd::Simd, time::Duration};

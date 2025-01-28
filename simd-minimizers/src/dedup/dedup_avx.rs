@@ -1,4 +1,5 @@
 use core::arch::x86_64::__m256i;
+use crate::S;
 use core::mem::transmute;
 
 const L: usize = 256 / 32;
@@ -59,15 +60,13 @@ fn write_unique_with_prev(prev: __m256i, new: __m256i, v: &mut [u32], write_idx:
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
 #[inline(always)]
-pub fn append_unique_vals(
-    old: __m256i,
-    new: __m256i,
-    vals: __m256i,
-    v: &mut [u32],
-    write_idx: &mut usize,
-) {
+pub fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
         use core::arch::x86_64::*;
+
+        let old = transmute(old);
+        let new = transmute(new);
+        let vals = transmute(vals);
 
         let recon = _mm256_blend_epi32(old, new, 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle

@@ -5,7 +5,8 @@
 //! TODO: Figure out how this works with reverse complements.
 
 use crate::nthash::Captures;
-use packed_seq::{Seq, S};
+use crate::S;
+use packed_seq::Seq;
 
 /// For k b-bit chars, the k*b-bit mask, and the mask for the most significant character.
 fn anti_and_mask(k: usize, b: usize) -> (u32, u32) {

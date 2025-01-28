@@ -5,7 +5,7 @@ use std::{
     mem::transmute,
 };
 
-use packed_seq::S;
+use crate::S;
 use wide::u32x8;
 
 use super::dedup::append_unique_vals;

@@ -2,8 +2,9 @@
 use std::array::from_fn;
 
 use super::intrinsics;
+use crate::S;
 use packed_seq::complement_base;
-use packed_seq::{Seq, S};
+use packed_seq::Seq;
 use wide::u32x8;
 
 pub trait Captures<U> {}

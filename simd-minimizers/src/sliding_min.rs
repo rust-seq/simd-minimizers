@@ -8,8 +8,8 @@
 //! All these methods take 32 bit input values, **but they only use the upper 16 bits!**
 //!
 //! Positions ar
+use crate::S;
 use core::array::from_fn;
-use packed_seq::S;
 use std::hint::assert_unchecked;
 
 /// A custom RingBuf implementation that has a fixed size `w` and wraps around.

@@ -112,6 +112,7 @@ pub mod private {
     pub mod sliding_min {
         pub use crate::sliding_min::*;
     }
+    pub use packed_seq::u32x8 as S;
 }
 
 /// Re-export of the `packed-seq` crate.
@@ -124,6 +125,7 @@ use minimizers::{
     minimizers_seq_simd,
 };
 use nthash::{MulHasher, NtHasher};
+use packed_seq::u32x8 as S;
 use packed_seq::Seq;
 
 /// Minimizer of a single window.

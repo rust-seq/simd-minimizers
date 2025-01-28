@@ -1,4 +1,4 @@
-use packed_seq::S;
+use crate::S;
 
 #[inline(always)]
 #[cfg(all(

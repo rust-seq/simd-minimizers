@@ -74,9 +74,7 @@
 )]
 
 // Private modules.
-mod dedup;
 mod intrinsics;
-mod transpose;
 
 // Re-exported modules.
 mod anti_lex;

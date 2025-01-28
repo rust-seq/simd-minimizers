@@ -8,8 +8,7 @@ use std::{
 use crate::S;
 use wide::u32x8;
 
-use super::dedup::append_unique_vals;
-use super::transpose::transpose;
+use crate::intrinsics::transpose;
 
 /// Convenience wrapper around `collect_into`.
 pub fn collect(
@@ -136,7 +135,7 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
                         v[j].resize(new_len, 0);
                     }
                     unsafe {
-                        append_unique_vals(
+                        crate::intrinsics::append_unique_vals(
                             old[j],
                             transmute(lane),
                             transmute(vals),

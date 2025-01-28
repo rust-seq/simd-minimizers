@@ -25,13 +25,15 @@ Make sure to set `RUSTFLAGS="-C target-cpu=native"` when compiling to use the in
 
 Full documentation can be found on [docs.rs](https://docs.rs/simd-minimizers).
 
-    // Packed SIMD version.
-    use packed_seq::{complement_char, PackedSeqVec, SeqVec};
-    let seq = b"ACGTGCTCAGAGACTCAG";
-    let k = 5;
-    let w = 7;
-    
-    let packed_seq = PackedSeqVec::from_ascii(seq);
-    let mut minimizer_positions = Vec::new();
-    simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut minimizer_positions);
-    assert_eq!(minimizer_positions, vec![3, 5, 12]);
+```rust
+// Packed SIMD version.
+use packed_seq::{complement_char, PackedSeqVec, SeqVec};
+let seq = b"ACGTGCTCAGAGACTCAG";
+let k = 5;
+let w = 7;
+
+let packed_seq = PackedSeqVec::from_ascii(seq);
+let mut minimizer_positions = Vec::new();
+simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut minimizer_positions);
+assert_eq!(minimizer_positions, vec![3, 5, 12]);
+```

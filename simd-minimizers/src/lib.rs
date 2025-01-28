@@ -1,25 +1,62 @@
-//! # `simd-minimizers` library
+//! A library to quickly compute (canonical) minimizers of DNA and text sequences.
 //!
-//! Use the `minimizer_positions` and `canonical_minimizer_positions` functions here  to compute (canonical) minimizer positions.
-//! Adjacent equal positions are deduplicated, but since the canonical minimizer is not _forward_, a position could appear more than once.
-//! The `scalar` versions may be more efficient for short sequences
-//! Submodules are exported for testing and benchmarking purposes, but should not be considered part of the stable API.
+//! The main functions are:
+//! - [`minimizer_positions`]: compute the positions of all minimizers of a sequence.
+//! - [`canonical_minimizer_positions`]: compute the positions of all _canonical_ minimizers of a sequence.
+//! Adjacent equal positions are deduplicated, but since the canonical minimizer is _not_ _forward_, a position could appear more than once.
 //!
-//! For the SIMD versions, input must be a packed sequence: `packed_seq::PackedSeq`.
-//! The scalar versions also accept plain ASCII `&[u8]` sequences that must only consist of `ACGTacgt` characters.
-//! If you want to use the SIMD version on `ACGTacgt` input, pack the sequence using `PackedSeq::new(seq)`.
+//! The implementation uses SIMD by splitting each sequence into 8 chunks and processing those in parallel.
+//! The [`minimizer_positions_scalar`] and [`canonical_minimizer_positions_scalar`] versions can be more efficient on short sequences where the overhead of chunking is large.
 //!
-//! General ASCII alphabet is not supported, since ntHash relies on the 2-bit encoding.
+//! The minimizer of a single window can be found using [`one_minimizer`] and [`one_canonical_minimizer`].
 //!
-//! ## `packed-seq` overview
+//! ## Minimizers
 //!
-//! The `packed-seq` crate provides the `Seq` trait that models a non-owned sequence of bases, like a `&[u8]` with `ACTGactg` values.
-//! It also has a `SeqVec` trait for owned variants.
+//! The code is explained in detail in our [preprint](https://doi.org/10.1101/2025.01.27.634998):
+//!
+//! > SimdMinimizers: Computing random minimizers, fast.
+//! > Ragnar Groot Koerkamp, Igor Martayan
+//!
+//! Briefly, minimizers are defined using two parameters `k` and `w`.
+//! Given a sequence of characters, all k-mers (substrings of length `k`) are hashed,
+//! and for each _window_ of `k` consecutive k-mers (of length `l = w + k - 1` characters),
+//! (the position of) the smallest k-mer is sampled.
+//!
+//! Minimizers are found as follows:
+//! 1. Split the input to 8 chunks that are processed in parallel using SIMD.
+//! 2. Compute a 32-bit ntHash rolling hash of the k-mers.
+//! 3. Use the 'two stacks' sliding window minimum on the top 16 bits of each hash.
+//! 4. Break ties towards the leftmost position by storing the position in the bottom 16 bits.
+//! 5. Compute 8 consecutive minimizer positions, and dedup them.
+//! 6. Collect the deduplicated minimizer positions from all 8 chunks into a single vector.
+//!
+//! ## Canonical minimizers
+//!
+//! _Canonical_ minimizers have the property that the sampled k-mers of a DNA sequence are the same as those sampled from the _reverse complement_ sequence.
+//!
+//! This works as follows:
+//! 1. ntHash is modified to use the canonical version that computes the xor of the hash of the forward and reverse complement k-mer.
+//! 2. Compute the leftmost and rightmost minimal k-mer.
+//! 3. Compute the 'preferred' strand of the current window as the one with more `TG` characters. This requires `l=w+k-1` to be odd for proper tie-breaking.
+//! 4. Return either the leftmost or rightmost smallest k-mer, depending on the preferred strand.
+//!
+//! ## Input types
+//!
+//! This crate depends on [`packed-seq`] to handle generic types of input sequences.
+//! Most commonly, one should use [`packed_seq::PackedSeqVec`] for packed DNA sequences, but one can also simply wrap a sequence of `ACTGactg` characters in [`packed_seq::AsciiSeqVec`].
+//! Additionally, [`simd-minimizers`] works on general (ASCII) `&[u8]` text.
+//!
+//! The main function provided by [`packed_seq`] is [`packed_seq::Seq::iter_bp`], which splits the input into 8 chunks and iterates them in parallel using SIMD.
 //!
 //! When dealing with ASCII input, use the `AsciiSeq` and `AsciiSeqVec` types.
 //!
-//! When dealing with packed sequences, use the `PackedSeq` and `PackedSeqVec` types.
+//! ## Hash function
 //!
+//! By default, the library uses the `ntHash` hash function, which maps each DNA base `ACTG` to a pseudo-random value using a table lookup.
+//! This hash function is specifically designed to be fast for hashing DNA sequences with input type [`packed_seq::PackedSeq`] and [`packed_seq::AsciiSeq`].
+//!
+//! For general ASCII sequences (`&[u8]`), `mulHash` is used instead, which instead multiplies each character value by a pseudo-random constant.
+//! The `mul_hash` module provides functions that _always_ use mulHash, also for DNA sequences.
 //!
 //! ## Examples
 //!
@@ -66,7 +103,7 @@
         feature = "hide-simd-warning"
     )),
     deprecated(
-        note = "This implementation uses SIMD, make sure you are compiling using `-C target-cpu=native` to get the expected performance. You can hide this warning by enabling the `hide-simd-warning` feature."
+        note = "simd-minimizers uses AVX2 or NEON SIMD instructions. Compile using `-C target-cpu=native` to get the expected performance. Hide this warning using the `hide-simd-warning` feature."
     )
 )]
 
@@ -87,7 +124,7 @@ mod test;
 // TODO: Old and in-development modules.
 // mod linearize;
 
-/// Re-exported internals. Not part of the server-compatible stable API.
+/// Re-exported internals. Used for benchmarking, and not part of the semver-compatible stable API.
 pub mod private {
     pub mod anti_lex {
         pub use crate::anti_lex::*;
@@ -123,7 +160,7 @@ use nthash::{MulHasher, NtHasher};
 use packed_seq::u32x8 as S;
 use packed_seq::Seq;
 
-/// Minimizer of a single window.
+/// Minimizer position of a single window.
 pub fn one_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
     if S::BITS_PER_CHAR == 2 {
         minimizers::minimizer::<NtHasher>(seq, k)
@@ -131,7 +168,7 @@ pub fn one_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
         minimizers::minimizer::<MulHasher>(seq, k)
     }
 }
-/// Minimizer of a single window.
+/// Canonical minimizer position of a single window.
 pub fn one_canonical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
     if S::BITS_PER_CHAR == 2 {
         minimizers::minimizer::<NtHasher>(seq, k)
@@ -155,8 +192,9 @@ pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: 
 
 /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
 ///
+/// `l=w+k-1` must be odd to determine the strand of each window.
+///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-/// l=w+k-1 must be odd to determine the strand of each window.
 pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
@@ -172,10 +210,13 @@ pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
     }
 }
 
-/// Variants that always use `mulHash`, instead of defaulting to `ntHash` for DNA data.
+/// Variants that always use mulHash, instead of the default ntHash for DNA and mulHash for text.
 pub mod mul_hash {
     use super::*;
 
+    /// Deduplicated positions of all minimizers in the sequence, using SIMD.
+    ///
+    /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: &mut Vec<u32>) {
         let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
         collect_and_dedup_into::<false>(head_tail, out_vec);
@@ -183,8 +224,9 @@ pub mod mul_hash {
 
     /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
     ///
+    /// `l=w+k-1` must be odd to determine the strand of each window.
+    ///
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
-    /// l=w+k-1 must be odd to determine the strand of each window.
     pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
         seq: S,
         k: usize,
@@ -196,10 +238,10 @@ pub mod mul_hash {
     }
 }
 
-/// Deduplicated positions of all minimizers in the sequence, not using SIMD.
+/// Deduplicated positions of all minimizers in the sequence.
+/// This scalar version can be faster for short sequences.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-/// This scalar version can be faster for sequences known to be short.
 pub fn minimizer_positions_scalar<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
@@ -213,11 +255,12 @@ pub fn minimizer_positions_scalar<'s, S: Seq<'s>>(
     }
 }
 
-/// Deduplicated positions of all canonical minimizers in the sequence, not using SIMD.
+/// Deduplicated positions of all canonical minimizers in the sequence.
+/// This scalar version can be faster for short sequences.
+///
+/// `l=w+k-1` must be odd to determine the strand of each window.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-/// l=w+k-1 must be odd to determine the strand of each window.
-/// This scalar version can be faster for sequences known to be short.
 pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
     seq: S,
     k: usize,

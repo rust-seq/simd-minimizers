@@ -13,5 +13,5 @@ wide = "0.7.30"
 rand = "0.8"
 
 [features]
-# Hides the `simd` warnings when neither AVX nor NEON is detected.
+# Hides the `simd` warnings when neither AVX2 nor NEON is detected.
 hide-simd-warning = []

@@ -26,7 +26,7 @@ pub trait Minimizer {
         self.window_minimizers(text)
             .into_iter()
             .enumerate()
-            .group_by(|(_idx, minimizer_pos)| *minimizer_pos)
+            .chunk_by(|(_idx, minimizer_pos)| *minimizer_pos)
             .into_iter()
             .map(|(minimizer_pos, mut group)| SuperKmer {
                 start_pos: group.next().expect("groups are non-empty").0,

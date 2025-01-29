@@ -9,11 +9,11 @@ license = "MIT"
 [dependencies]
 criterion = "0.5.1"
 fxhash = "0.2"
-itertools = "0.12"
+itertools = "0.14"
 minimizer-iter = "1.2.1"
-needletail = "0.5.1"
+needletail = "0.6.1"
 nthash = "0.5.1"
-rand = "0.8"
+rand = "0.9"
 wyhash = "0.5"
 
 simd-minimizers = { path = "../simd-minimizers" }

@@ -318,8 +318,8 @@ fn bench_sliding_min() {
     });
 
     let n = 10_000_000;
-    let mut rng = rand::thread_rng();
-    let vals = (0..n).map(|_| rng.gen::<usize>()).collect::<Vec<_>>();
+    let mut rng = rand::rng();
+    let vals = (0..n).map(|_| rng.random::<u64>()).collect::<Vec<_>>();
 
     for w in [1, 2, 4, 8, 16, 32, 64, 128] {
         let params = Params { n, w, k: 0 };

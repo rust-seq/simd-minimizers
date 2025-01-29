@@ -25,13 +25,17 @@ fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     let slice = &*SLICE;
     let ascii_seq = &*ASCII_SEQ;
     let packed_seq = &*PACKED_SEQ;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut ks = vec![1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65];
     let mut ws = vec![1, 2, 3, 4, 5, 31, 32, 33, 63, 64, 65];
     let mut lens = (0..100).collect_vec();
-    ks.extend((0..10).map(|_| rng.gen_range(6..100)).collect_vec());
-    ws.extend((0..10).map(|_| rng.gen_range(6..100)).collect_vec());
-    lens.extend((0..10).map(|_| rng.gen_range(100..1024 * 32)).collect_vec());
+    ks.extend((0..10).map(|_| rng.random_range(6..100)).collect_vec());
+    ws.extend((0..10).map(|_| rng.random_range(6..100)).collect_vec());
+    lens.extend(
+        (0..10)
+            .map(|_| rng.random_range(100..1024 * 32))
+            .collect_vec(),
+    );
     for &k in &ks {
         for &w in &ws {
             for &len in &lens {

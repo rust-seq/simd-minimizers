@@ -1,8 +1,13 @@
 [package]
 name = "simd-minimizers"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/rust-seq/simd-minimizers"
+keywords = ["minimizers", "simd", "dna", "bioinformatics"]
+categories = ["compression", "data-structures", "science::bioinformatics"]
+authors = ["Ragnar Groot Koerkamp", "Igor Martayan"]
+description = "A SIMD-accelerated library to compute random minimizers"
 
 [dependencies]
 itertools = "0.14"

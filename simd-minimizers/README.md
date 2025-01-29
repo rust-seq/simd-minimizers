@@ -1,5 +1,8 @@
 # simd-minimizers
 
+[![crates.io](https://img.shields.io/crates/v/simd-minimizers)](https://crates.io/crates/simd-minimizers)
+[![docs](https://img.shields.io/docsrs/simd-minimizers)](https://docs.rs/simd-minimizers)
+
 A SIMD-accelerated library to compute random minimizers.
 
 It can compute all the minimizers of a human genome in 4 seconds using a single thread.

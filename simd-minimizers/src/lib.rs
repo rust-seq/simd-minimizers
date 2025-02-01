@@ -356,4 +356,68 @@ pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
     }
 }
 
+/// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers.
+/// This scalar version can be faster for short sequences.
+///
+/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+pub fn minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    if S::BITS_PER_CHAR == 2 {
+        let (sk_pos, min_pos): (Vec<_>, Vec<_>) = minimizers_seq_scalar::<NtHasher>(seq, k, w)
+            .enumerate()
+            .dedup_by(|x, y| x.1 == y.1)
+            .map(|(x, y)| (x as u32, y))
+            .unzip();
+        min_pos_vec.extend(min_pos);
+        sk_pos_vec.extend(sk_pos);
+    } else {
+        let (sk_pos, min_pos): (Vec<_>, Vec<_>) = minimizers_seq_scalar::<MulHasher>(seq, k, w)
+            .enumerate()
+            .dedup_by(|x, y| x.1 == y.1)
+            .map(|(x, y)| (x as u32, y))
+            .unzip();
+        min_pos_vec.extend(min_pos);
+        sk_pos_vec.extend(sk_pos);
+    }
+}
+
+/// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers.
+/// This scalar version can be faster for short sequences.
+///
+/// `l=w+k-1` must be odd to determine the strand of each window.
+///
+/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+pub fn canonical_minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    if S::BITS_PER_CHAR == 2 {
+        let (sk_pos, min_pos): (Vec<_>, Vec<_>) =
+            canonical_minimizers_seq_scalar::<NtHasher>(seq, k, w)
+                .enumerate()
+                .dedup_by(|x, y| x.1 == y.1)
+                .map(|(x, y)| (x as u32, y))
+                .unzip();
+        min_pos_vec.extend(min_pos);
+        sk_pos_vec.extend(sk_pos);
+    } else {
+        let (sk_pos, min_pos): (Vec<_>, Vec<_>) =
+            canonical_minimizers_seq_scalar::<MulHasher>(seq, k, w)
+                .enumerate()
+                .dedup_by(|x, y| x.1 == y.1)
+                .map(|(x, y)| (x as u32, y))
+                .unzip();
+        min_pos_vec.extend(min_pos);
+        sk_pos_vec.extend(sk_pos);
+    }
+}
+
 // TODO: Make scalar methods return an iterator.

@@ -162,7 +162,7 @@ pub mod private {
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
 
-use collect::collect_and_dedup_into;
+use collect::{collect_and_dedup_into, collect_and_dedup_with_index_into};
 use itertools::Itertools;
 use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
@@ -222,6 +222,46 @@ pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
     }
 }
 
+/// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+///
+/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    if S::BITS_PER_CHAR == 2 {
+        let head_tail = minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+    } else {
+        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+    }
+}
+
+/// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+///
+/// `l=w+k-1` must be odd to determine the strand of each window.
+///
+/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    if S::BITS_PER_CHAR == 2 {
+        let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+    } else {
+        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+    }
+}
+
 /// Variants that always use mulHash, instead of the default ntHash for DNA and mulHash for text.
 pub mod mul_hash {
     use super::*;
@@ -247,6 +287,36 @@ pub mod mul_hash {
     ) {
         let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
         collect_and_dedup_into(head_tail, out_vec);
+    }
+
+    /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+    ///
+    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+    pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+    }
+
+    /// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+    ///
+    /// `l=w+k-1` must be odd to determine the strand of each window.
+    ///
+    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+    pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     }
 }
 

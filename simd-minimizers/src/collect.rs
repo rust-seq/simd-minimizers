@@ -225,20 +225,24 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
         }
 
         // Flatten v.
-        for lane in v.iter() {
-            let mut lane = lane.as_slice();
-            while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
-                lane = &lane[1..];
-            }
-            out_vec.extend_from_slice(lane);
-        }
         if SUPER {
-            for lane in v2.iter() {
+            for (lane, lane2) in v.iter().zip(v2.iter()) {
                 let mut lane = lane.as_slice();
-                while !lane.is_empty() && Some(lane[0]) == idx_vec.last().copied() {
+                let mut lane2 = lane2.as_slice();
+                while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
+                    lane = &lane[1..];
+                    lane2 = &lane2[1..];
+                }
+                out_vec.extend_from_slice(lane);
+                idx_vec.extend_from_slice(lane2);
+            }
+        } else {
+            for lane in v.iter() {
+                let mut lane = lane.as_slice();
+                while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
                     lane = &lane[1..];
                 }
-                idx_vec.extend_from_slice(lane);
+                out_vec.extend_from_slice(lane);
             }
         }
 

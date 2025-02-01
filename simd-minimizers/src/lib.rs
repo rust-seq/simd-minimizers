@@ -195,10 +195,10 @@ pub fn one_canonical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
 pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: &mut Vec<u32>) {
     if S::BITS_PER_CHAR == 2 {
         let head_padding = minimizers_seq_simd::<_, NtHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_padding, out_vec);
+        collect_and_dedup_into(head_padding, out_vec);
     } else {
         let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_padding, out_vec);
+        collect_and_dedup_into(head_padding, out_vec);
     }
 }
 
@@ -215,10 +215,10 @@ pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
 ) {
     if S::BITS_PER_CHAR == 2 {
         let head_padding = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_padding, out_vec);
+        collect_and_dedup_into(head_padding, out_vec);
     } else {
         let head_padding = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_padding, out_vec);
+        collect_and_dedup_into(head_padding, out_vec);
     }
 }
 
@@ -231,7 +231,7 @@ pub mod mul_hash {
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: &mut Vec<u32>) {
         let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_padding, out_vec);
+        collect_and_dedup_into(head_padding, out_vec);
     }
 
     /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
@@ -246,7 +246,7 @@ pub mod mul_hash {
         out_vec: &mut Vec<u32>,
     ) {
         let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
-        collect_and_dedup_into::<false>(head_tail, out_vec);
+        collect_and_dedup_into(head_tail, out_vec);
     }
 }
 

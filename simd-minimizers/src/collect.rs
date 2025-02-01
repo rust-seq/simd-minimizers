@@ -62,7 +62,7 @@ pub fn collect_into(
 }
 
 thread_local! {
-    static CACHE: RefCell<[Vec<u32>; 8]> = RefCell::new(array::from_fn(|_| Vec::new()));
+    static CACHE: RefCell<[Vec<u32>; 16]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
 /// Convenience wrapper around `collect_and_dedup_into`.
@@ -70,32 +70,73 @@ pub fn collect_and_dedup<const SUPER: bool>(
     (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
 ) -> Vec<u32> {
     let mut v = vec![];
-    collect_and_dedup_into::<SUPER>((par_head, padding), &mut v);
+    collect_and_dedup_into((par_head, padding), &mut v);
     v
+}
+
+/// Convenience wrapper around `collect_and_dedup_with_index_into`.
+pub fn collect_and_dedup_with_index(
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
+) -> (Vec<u32>, Vec<u32>) {
+    let mut v = vec![];
+    let mut v2 = vec![];
+    collect_and_dedup_with_index_into((par_head, tail), &mut v, &mut v2);
+    (v, v2)
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
 /// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
 ///
-/// By default (when `SUPER` is false), the output is simply the deduplicated input values.
-/// When `SUPER` is true, each returned `u32` is a tuple of `(u16,16)` where the low bits are those of the input value,
-/// and the high bits are the index of the stream it first appeared, i.e., the start of its super-k-mer.
-/// These positions are mod 2^16. When the window length is <2^16, this is sufficient to recover full super-k-mers.
+/// The output is simply the deduplicated input values.
 #[inline(always)]
-pub fn collect_and_dedup_into<const SUPER: bool>(
+pub fn collect_and_dedup_into(
     (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
 ) {
+    collect_and_dedup_into_impl::<false>((par_head, tail), out_vec, &mut vec![]);
+}
+
+/// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
+/// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
+///
+/// The deduplicated input values are written in `out_vec` and the index of the stream it first appeared, i.e., the start of its super-k-mer, is written in `idx_vec`.
+#[inline(always)]
+pub fn collect_and_dedup_with_index_into(
+    (par_head, tail): (impl ExactSizeIterator<Item = S>, usize),
+    out_vec: &mut Vec<u32>,
+    idx_vec: &mut Vec<u32>,
+) {
+    collect_and_dedup_into_impl::<true>((par_head, tail), out_vec, idx_vec);
+}
+
+/// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
+/// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
+///
+/// By default (when `SUPER` is false), the deduplicated input values are written in `out_vec`.
+/// When `SUPER` is true, the index of the stream in which the input value first appeared, i.e., the start of its super-k-mer, is additionale written in `idx_vec`.
+#[inline(always)]
+fn collect_and_dedup_into_impl<const SUPER: bool>(
+    (par_head, tail): (
+        impl ExactSizeIterator<Item = S>,
+        impl ExactSizeIterator<Item = u32>,
+    ),
+    out_vec: &mut Vec<u32>,
+    idx_vec: &mut Vec<u32>,
+) {
     CACHE.with(|v| {
         let mut v = v.borrow_mut();
+        let (v, v2) = v.split_at_mut(8);
 
         let mut write_idx = [0; 8];
         // Vec of last pushed elements in each lane.
-        let mut old = [unsafe { transmute([u32::MAX; 8]) }; 8];
+        let mut old = [S::MAX; 8];
 
         let len = par_head.len();
-        let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat(((i * len) << 16) as u32));
-        let offsets: [u32; 8] = from_fn(|i| (i << 16) as u32);
+        let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
+        let offsets: [u32; 8] = from_fn(|i| i as u32);
         let mut offsets: u32x8 = unsafe { transmute(offsets) };
 
         let mut mask = u32x8::ZERO;
@@ -124,47 +165,61 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
             m[i % 8] = x;
             if i % 8 == 7 {
                 let t = transpose(m);
-                offsets += u32x8::splat(8 << 16);
                 for j in 0..8 {
                     let lane = t[j];
-                    let vals = if SUPER {
-                        // High 16 bits are the index where the minimizer first becomes minimal.
-                        // Low 16 bits are the position of the minimizer itself.
-                        (offsets + lane_offsets[j]) | (lane & u32x8::splat(0xFFFF))
-                    } else {
-                        lane
-                    };
                     if write_idx[j] + 8 > v[j].len() {
                         let new_len = v[j].len() + 1024;
                         v[j].resize(new_len, 0);
+                        if SUPER {
+                            v2[j].resize(new_len, 0);
+                        }
                     }
                     unsafe {
-                        crate::intrinsics::append_unique_vals(
-                            old[j],
-                            transmute(lane),
-                            transmute(vals),
-                            &mut v[j],
-                            &mut write_idx[j],
-                        );
-                        old[j] = transmute(lane);
+                        if SUPER {
+                            crate::intrinsics::append_unique_vals_2(
+                                old[j],
+                                lane,
+                                lane,
+                                offsets + lane_offsets[j],
+                                &mut v[j],
+                                &mut v2[j],
+                                &mut write_idx[j],
+                            );
+                        } else {
+                            crate::intrinsics::append_unique_vals(
+                                old[j],
+                                lane,
+                                lane,
+                                &mut v[j],
+                                &mut write_idx[j],
+                            );
+                        }
+                        old[j] = lane;
                     }
                 }
+                offsets += u32x8::splat(8);
             }
             i += 1;
         });
 
         for j in 0..8 {
             v[j].truncate(write_idx[j]);
+            if SUPER {
+                v2[j].truncate(write_idx[j]);
+            }
         }
 
         // Manually write the unfinished parts of length k=i%8.
         let t = transpose(m);
         let k = i % 8;
         for j in 0..8 {
-            let lane = &unsafe { transmute::<_, [u32; 8]>(t[j]) }[..k];
-            for x in lane {
+            let lane = t[j].as_array_ref();
+            for (p, x) in lane.iter().take(k).enumerate() {
                 if v[j].last() != Some(x) {
                     v[j].push(*x);
+                    if SUPER {
+                        v2[j].push(offsets.as_array_ref()[p] + lane_offsets[j].as_array_ref()[p]);
+                    }
                 }
             }
         }
@@ -177,11 +232,23 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
             }
             out_vec.extend_from_slice(lane);
         }
+        if SUPER {
+            for lane in v2.iter() {
+                let mut lane = lane.as_slice();
+                while !lane.is_empty() && Some(lane[0]) == idx_vec.last().copied() {
+                    lane = &lane[1..];
+                }
+                idx_vec.extend_from_slice(lane);
+            }
+        }
 
         // If we had padding, pop the last element.
         if out_vec.last() == Some(&u32::MAX) {
             assert!(padding > 0);
             out_vec.pop();
+            if SUPER {
+                idx_vec.pop();
+            }
         }
     })
 }

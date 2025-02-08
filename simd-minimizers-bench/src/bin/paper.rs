@@ -200,7 +200,7 @@ fn bench_minimizers(w: usize, k: usize) {
             v2,
         );
         v2.clear();
-        collect::collect_and_dedup_into::<false>(
+        collect::collect_and_dedup_into(
             minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
             v2,
         );

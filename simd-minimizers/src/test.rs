@@ -249,3 +249,164 @@ fn canonical_minimizer_positions() {
         assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
     });
 }
+
+#[test]
+fn minimizer_and_superkmer_positions() {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        let mut scalar_ascii = vec![];
+        let mut scalar_ascii_skmer = vec![];
+        minimizer_and_superkmer_positions_scalar(
+            ascii_seq,
+            k,
+            w,
+            &mut scalar_ascii,
+            &mut scalar_ascii_skmer,
+        );
+        let mut scalar_packed = vec![];
+        let mut scalar_packed_skmer = vec![];
+        minimizer_and_superkmer_positions_scalar(
+            packed_seq,
+            k,
+            w,
+            &mut scalar_packed,
+            &mut scalar_packed_skmer,
+        );
+        let mut simd_ascii = vec![];
+        let mut simd_ascii_skmer = vec![];
+        super::minimizer_and_superkmer_positions(
+            ascii_seq,
+            k,
+            w,
+            &mut simd_ascii,
+            &mut simd_ascii_skmer,
+        );
+        let mut simd_packed = vec![];
+        let mut simd_packed_skmer = vec![];
+        super::minimizer_and_superkmer_positions(
+            packed_seq,
+            k,
+            w,
+            &mut simd_packed,
+            &mut simd_packed_skmer,
+        );
+
+        let len = ascii_seq.len();
+        assert_eq!(
+            scalar_ascii.len(),
+            scalar_ascii_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            scalar_packed.len(),
+            scalar_packed_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            simd_ascii.len(),
+            simd_ascii_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            simd_packed.len(),
+            simd_packed_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, scalar_packed_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, simd_ascii_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, simd_packed_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+    });
+}
+
+#[test]
+fn canonical_minimizer_and_superkmer_positions() {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        if (k + w - 1) % 2 == 0 {
+            return;
+        }
+        let mut scalar_ascii = vec![];
+        let mut scalar_ascii_skmer = vec![];
+        canonical_minimizer_and_superkmer_positions_scalar(
+            ascii_seq,
+            k,
+            w,
+            &mut scalar_ascii,
+            &mut scalar_ascii_skmer,
+        );
+        let mut scalar_packed = vec![];
+        let mut scalar_packed_skmer = vec![];
+        canonical_minimizer_and_superkmer_positions_scalar(
+            packed_seq,
+            k,
+            w,
+            &mut scalar_packed,
+            &mut scalar_packed_skmer,
+        );
+        let mut simd_ascii = vec![];
+        let mut simd_ascii_skmer = vec![];
+        super::canonical_minimizer_and_superkmer_positions(
+            ascii_seq,
+            k,
+            w,
+            &mut simd_ascii,
+            &mut simd_ascii_skmer,
+        );
+        let mut simd_packed = vec![];
+        let mut simd_packed_skmer = vec![];
+        super::canonical_minimizer_and_superkmer_positions(
+            packed_seq,
+            k,
+            w,
+            &mut simd_packed,
+            &mut simd_packed_skmer,
+        );
+
+        let len = ascii_seq.len();
+        assert_eq!(
+            scalar_ascii.len(),
+            scalar_ascii_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            scalar_packed.len(),
+            scalar_packed_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            simd_ascii.len(),
+            simd_ascii_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(
+            simd_packed.len(),
+            simd_packed_skmer.len(),
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, scalar_packed_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, simd_ascii_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(
+            scalar_ascii_skmer, simd_packed_skmer,
+            "k={k}, w={w}, len={len}"
+        );
+    });
+}

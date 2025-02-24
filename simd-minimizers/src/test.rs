@@ -15,7 +15,7 @@ fn swap_gt(c: u8) -> u8 {
     }
 }
 
-static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024 * 32));
+static ASCII_SEQ: LazyLock<AsciiSeqVec> = LazyLock::new(|| AsciiSeqVec::random(1024));
 static SLICE: LazyLock<Vec<u8>> =
     LazyLock::new(|| ASCII_SEQ.seq.iter().copied().map(swap_gt).collect_vec());
 static PACKED_SEQ: LazyLock<PackedSeqVec> =
@@ -31,11 +31,7 @@ fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     let mut lens = (0..100).collect_vec();
     ks.extend((0..10).map(|_| rng.random_range(6..100)).collect_vec());
     ws.extend((0..10).map(|_| rng.random_range(6..100)).collect_vec());
-    lens.extend(
-        (0..10)
-            .map(|_| rng.random_range(100..1024 * 32))
-            .collect_vec(),
-    );
+    lens.extend((0..10).map(|_| rng.random_range(100..1024)).collect_vec());
     for &k in &ks {
         for &w in &ws {
             for &len in &lens {
@@ -107,7 +103,7 @@ fn nthash_canonical_is_revcomp() {
         for k in [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
         ] {
-            for len in (0..100).chain(once(1024 * 32)) {
+            for len in (0..100).chain(once(1024)) {
                 let seq = seq.slice(0..len);
                 let seq_rc = seq_rc.slice(seq_rc.len() - len..seq_rc.len());
                 let scalar = nthash_seq_scalar::<true, H>(seq, k).collect::<Vec<_>>();

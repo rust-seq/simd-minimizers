@@ -1,2 +1,2 @@
-[env]
-PYO3_PYTHON = "/usr/bin/python"
+[build]
+rustflags = ["-C", "target-cpu=native"]

@@ -15,15 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --verbose --package simd-minimizers
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --package simd-minimizers
 
   test-mac:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --verbose --package simd-minimizers
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --package simd-minimizers

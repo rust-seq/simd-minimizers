@@ -746,6 +746,7 @@ dependencies = [
  "nthash",
  "packed-seq",
  "rand",
+ "rayon",
  "serde",
  "serde_json",
  "simd-minimizers",

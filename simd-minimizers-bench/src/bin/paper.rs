@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
 use rand::Rng;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions, mul_hash,
     private::{
@@ -10,10 +11,11 @@ use simd_minimizers::{
     },
 };
 use simd_minimizers_bench::*;
-use std::hint::black_box;
+use std::{cell::RefCell, hint::black_box};
 use wide::u32x8;
 
 fn main() {
+    bench_human_genome();
     bench_minimizers(5, 31); // kraken
     bench_minimizers(11, 21); // sshash
     bench_minimizers(19, 19); // minimap
@@ -311,6 +313,47 @@ fn bench_minimizers(w: usize, k: usize) {
     }
 }
 
+fn bench_human_genome() {
+    let seqs = read_human_genome(usize::MAX);
+    let mut v = Vec::new();
+    let n = 1;
+    let w = 11;
+    let k = 21;
+
+    time("hg-fwd", Params { n, k, w }, || {
+        for seq in &seqs {
+            minimizer_positions(seq.as_slice(), k, w, &mut v);
+            black_box(&mut v).clear();
+        }
+    });
+    time("hg-canonical", Params { n, k, w }, || {
+        for seq in &seqs {
+            canonical_minimizer_positions(seq.as_slice(), k, w, &mut v);
+            black_box(&mut v).clear();
+        }
+    });
+
+    thread_local! {
+        static V: RefCell<Vec<u32>> = RefCell::new(vec![]);
+    }
+    time("hg-fwd-par", Params { n, k, w }, || {
+        seqs.par_iter().for_each(|seq| {
+            V.with_borrow_mut(|v| {
+                minimizer_positions(seq.as_slice(), k, w, v);
+                black_box(v).clear();
+            });
+        });
+    });
+    time("hg-canonical-par", Params { n, k, w }, || {
+        seqs.par_iter().for_each(|seq| {
+            V.with_borrow_mut(|v| {
+                canonical_minimizer_positions(seq.as_slice(), k, w, v);
+                black_box(v).clear();
+            });
+        });
+    });
+}
+
 #[allow(unused)]
 fn bench_sliding_min() {
     EXPERIMENT.with(|e| {
@@ -371,8 +414,10 @@ fn time_v<T: std::iter::Sum, I: Iterator<Item = T>>(
     v.clear();
 }
 
+const REPEATS: usize = 5;
+
 fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
-    for _ in 0..5 {
+    for _ in 0..REPEATS {
         let start = std::time::Instant::now();
         black_box(f());
         let elapsed = start.elapsed().as_secs_f64() * 1_000_000_000. / params.n as f64;

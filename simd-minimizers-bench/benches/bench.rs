@@ -1,3 +1,5 @@
+//! Some ad-hoc benchmarks.
+//! For the benchmarks in the paper, see src/bin/paper.rs.
 #![feature(portable_simd)]
 #![allow(dead_code)]
 use itertools::Itertools;

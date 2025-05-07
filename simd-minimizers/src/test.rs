@@ -4,7 +4,7 @@ use collect::collect;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
 use rand::{random_range, Rng};
-use std::{iter::once, sync::LazyLock};
+use std::sync::LazyLock;
 
 /// Swap G and T, so that the lex order is the same as for the packed version.
 fn swap_gt(c: u8) -> u8 {

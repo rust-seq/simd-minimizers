@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
-use rand::Rng;
+use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions, mul_hash,
@@ -16,6 +16,9 @@ use wide::u32x8;
 
 fn main() {
     bench_human_genome();
+
+    bench_short(11, 21); // sshash
+
     bench_minimizers(5, 31); // kraken
     bench_minimizers(11, 21); // sshash
     bench_minimizers(19, 19); // minimap
@@ -47,6 +50,40 @@ struct Result {
     k: usize,
     w: usize,
     time: f64,
+}
+
+fn bench_short(w: usize, k: usize) {
+    let total_len = 1 << 20;
+    EXPERIMENT.with(|e| {
+        *e.borrow_mut() = "short".to_string();
+    });
+    eprintln!("\nShort n\n");
+    let v = &mut vec![];
+    for n in [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192] {
+        let num = total_len / n;
+
+        let packed_seqs = (0..num)
+            .map(|_| {
+                let len = random_range(n..2 * n);
+                PackedSeqVec::random(len)
+            })
+            .collect_vec();
+
+        let params = Params { n: total_len, w, k };
+
+        time(&format!("simd-minimizer {n}"), params, || {
+            for s in &packed_seqs {
+                v.clear();
+                minimizer_positions(s.as_slice(), k, w, v);
+            }
+        });
+        time(&format!("canonical simd-minimizer {n}"), params, || {
+            for s in &packed_seqs {
+                v.clear();
+                canonical_minimizer_positions(s.as_slice(), k, w, v);
+            }
+        });
+    }
 }
 
 fn bench_minimizers(w: usize, k: usize) {

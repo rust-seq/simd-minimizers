@@ -210,16 +210,14 @@ pub fn nthash_seq_simd<'s, const RC: bool, SEQ: Seq<'s>, H: CharHasher>(
     w: usize,
 ) -> (
     impl ExactSizeIterator<Item = S> + Captures<&'s ()> + Clone,
-    impl ExactSizeIterator<Item = u32> + Captures<&'s ()> + Clone,
+    usize,
 ) {
-    let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
+    let (add_remove, padding) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
     let mut it = add_remove.map(nthash_mapper::<RC, SEQ, H>(k, w));
     it.by_ref().take(k - 1).for_each(drop);
 
-    let tail = nthash_seq_scalar::<RC, H>(tail, k);
-
-    (it, tail)
+    (it, padding)
 }
 
 /// A function that 'eats' added and removed bases, and returns the updated hash.

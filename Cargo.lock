@@ -496,8 +496,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "packed-seq"
 version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66357293f640400f7aaa7bfc9551476f4cdb0577dc3a7b9b7371a33be8e23581"
+source = "git+https://github.com/rust-seq/packed-seq.git#999f7a5a06585725dcc5e328f62630cb0935f3df"
 dependencies = [
  "cfg-if",
  "mem_dbg",

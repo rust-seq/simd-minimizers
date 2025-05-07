@@ -62,16 +62,13 @@ pub fn anti_lex_hash_seq_simd<'s>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
-) -> (
-    impl ExactSizeIterator<Item = S> + Captures<&'s ()>,
-    impl ExactSizeIterator<Item = u32> + Captures<&'s ()>,
-) {
+) -> (impl ExactSizeIterator<Item = S> + Captures<&'s ()>, usize) {
     let b = seq.bits_per_char();
     assert!(k > 0);
     assert!(w > 0);
 
     let mut h_fw = S::splat(0);
-    let (mut add, tail) = seq.par_iter_bp(k + w - 1);
+    let (mut add, padding) = seq.par_iter_bp(k + w - 1);
 
     let (anti, mask) = anti_and_mask(k, b);
     let anti = S::splat(anti);
@@ -86,9 +83,7 @@ pub fn anti_lex_hash_seq_simd<'s>(
         h_fw ^ anti
     });
 
-    let tail = anti_lex_hash_seq_scalar(tail, k);
-
-    (it, tail)
+    (it, padding)
 }
 
 /// A function that 'eats' added and removed bases, and returns the updated hash.

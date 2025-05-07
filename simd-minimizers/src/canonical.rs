@@ -51,17 +51,15 @@ pub fn canonical_windows_seq_simd<'s>(
     w: usize,
 ) -> (
     impl ExactSizeIterator<Item = i32x8> + Captures<&'s ()>,
-    impl ExactSizeIterator<Item = bool> + Captures<&'s ()>,
+    usize,
 ) {
     let l = k + w - 1;
-    let (add_remove, tail) = seq.par_iter_bp_delayed(k + w - 1, l - 1);
+    let (add_remove, padding) = seq.par_iter_bp_delayed(k + w - 1, l - 1);
 
     let mut head = add_remove.map(canonical_mapper(k, w));
     head.by_ref().take(l - 1).for_each(drop);
 
-    let tail = canonical_windows_seq_scalar(tail, k, w);
-
-    (head, tail)
+    (head, padding)
 }
 
 /// NOTE: First l-1 values are bogus.

@@ -6,19 +6,15 @@ use std::{
 };
 
 use crate::S;
+use packed_seq::L;
 use wide::u32x8;
 
 use crate::intrinsics::transpose;
 
 /// Convenience wrapper around `collect_into`.
-pub fn collect(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
-) -> Vec<u32> {
+pub fn collect((par_head, padding): (impl ExactSizeIterator<Item = S>, usize)) -> Vec<u32> {
     let mut v = vec![];
-    collect_into((par_head, tail), &mut v);
+    collect_into((par_head, padding), &mut v);
     v
 }
 
@@ -27,14 +23,11 @@ pub fn collect(
 /// The `tail` is appended at the end.
 #[inline(always)]
 pub fn collect_into(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
 ) {
     let len = par_head.len();
-    out_vec.resize(len * 8 + tail.len(), 0);
+    out_vec.resize(len * 8, 0);
 
     let mut m = [unsafe { transmute([0; 8]) }; 8];
     let mut i = 0;
@@ -65,10 +58,7 @@ pub fn collect_into(
         }
     }
 
-    // Manually write the explicit tail.
-    for (i, x) in tail.enumerate() {
-        out_vec[8 * len + i] = x;
-    }
+    out_vec.resize(out_vec.len() - padding, 0);
 }
 
 thread_local! {
@@ -77,13 +67,10 @@ thread_local! {
 
 /// Convenience wrapper around `collect_and_dedup_into`.
 pub fn collect_and_dedup<const SUPER: bool>(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
 ) -> Vec<u32> {
     let mut v = vec![];
-    collect_and_dedup_into::<SUPER>((par_head, tail), &mut v);
+    collect_and_dedup_into::<SUPER>((par_head, padding), &mut v);
     v
 }
 
@@ -96,10 +83,7 @@ pub fn collect_and_dedup<const SUPER: bool>(
 /// These positions are mod 2^16. When the window length is <2^16, this is sufficient to recover full super-k-mers.
 #[inline(always)]
 pub fn collect_and_dedup_into<const SUPER: bool>(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
 ) {
     CACHE.with(|v| {
@@ -114,9 +98,29 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
         let offsets: [u32; 8] = from_fn(|i| (i << 16) as u32);
         let mut offsets: u32x8 = unsafe { transmute(offsets) };
 
+        let mut mask = u32x8::ZERO;
+        let mut padding_i = 0;
+        let mut padding_idx = 0;
+        assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
+        let mut remaining_padding = padding;
+        for i in (0..8).rev() {
+            if remaining_padding >= len {
+                mask.as_array_mut()[i] = u32::MAX;
+                remaining_padding -= len;
+                continue;
+            }
+            padding_i = len - remaining_padding;
+            padding_idx = i;
+            break;
+        }
+
         let mut m = [u32x8::ZERO; 8];
         let mut i = 0;
         par_head.for_each(|x| {
+            if i == padding_i {
+                mask.as_array_mut()[padding_idx] = u32::MAX;
+            }
+            let x = x | mask;
             m[i % 8] = x;
             if i % 8 == 7 {
                 let t = transpose(m);
@@ -174,13 +178,10 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
             out_vec.extend_from_slice(lane);
         }
 
-        // Manually write the dedup'ed explicit tail.
-        for x in tail {
-            if out_vec.last() != Some(&x) {
-                out_vec.push(x);
-            }
+        // If we had padding, pop the last element.
+        if out_vec.last() == Some(&u32::MAX) {
+            assert!(padding > 0);
+            out_vec.pop();
         }
-
-        // v_flat
     })
 }

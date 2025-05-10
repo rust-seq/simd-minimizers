@@ -11,14 +11,15 @@ use simd_minimizers::{
     },
 };
 use simd_minimizers_bench::*;
+use std::simd::u32x16 as u32x8;
+use std::simd::u32x16 as S;
 use std::{cell::RefCell, hint::black_box};
-use wide::u32x8;
 
 fn main() {
-    plot();
-    return;
+    // plot();
 
     bench_human_genome();
+    return;
 
     bench_short(11, 21); // sshash
 
@@ -547,7 +548,7 @@ fn time_v<T: std::iter::Sum, I: Iterator<Item = T>>(
     v.clear();
 }
 
-const REPEATS: usize = 5;
+const REPEATS: usize = 1;
 
 fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
     for _ in 0..REPEATS {

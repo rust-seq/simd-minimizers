@@ -5,7 +5,7 @@ use super::intrinsics;
 use crate::S;
 use packed_seq::complement_base;
 use packed_seq::Seq;
-use wide::u32x8;
+use std::simd::u32x16 as u32x8;
 
 pub trait Captures<U> {}
 impl<T: ?Sized, U> Captures<U> for T {}
@@ -55,7 +55,7 @@ impl CharHasher for NtHasher {
         let c = from_fn(|i| HASHES_F[complement_base(i as u8) as usize]);
         let f_rot = f.map(|h| h.rotate_left(rot));
         let c_rot = c.map(|h| h.rotate_left(rot));
-        let idx = [0, 1, 2, 3, 0, 1, 2, 3];
+        let idx = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
         let simd_f = idx.map(|i| f[i]).into();
         let simd_c = idx.map(|i| c[i]).into();
         let simd_f_rot = idx.map(|i| f_rot[i]).into();
@@ -131,17 +131,17 @@ impl CharHasher for MulHasher {
     }
 
     fn simd_f(&self, b: u32x8) -> u32x8 {
-        b * C.into()
+        b * u32x8::splat(C)
     }
     fn simd_c(&self, b: u32x8) -> u32x8 {
-        packed_seq::complement_base_simd(b) * C.into()
+        packed_seq::complement_base_simd(b) * u32x8::splat(C)
     }
     fn simd_f_rot(&self, b: u32x8) -> u32x8 {
-        let r = b * C.into();
+        let r = b * u32x8::splat(C);
         (r << self.rot) | (r >> (32 - self.rot))
     }
     fn simd_c_rot(&self, b: u32x8) -> u32x8 {
-        let r = packed_seq::complement_base_simd(b) * C.into();
+        let r = packed_seq::complement_base_simd(b) * u32x8::splat(C);
         (r << self.rot) | (r >> (32 - self.rot))
     }
 }

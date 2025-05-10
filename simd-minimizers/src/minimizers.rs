@@ -13,7 +13,7 @@ use super::{
 };
 use itertools::Itertools;
 use packed_seq::Seq;
-use wide::u32x8;
+use std::simd::u32x16 as u32x8;
 
 /// Returns the minimizer of a window using a naive linear scan.
 pub fn minimizer<'s, H: CharHasher>(seq: impl Seq<'s>, k: usize) -> usize {
@@ -116,7 +116,7 @@ pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
         let nthash = nthash((a, rk));
         let canonical = canonical((a, rl));
         let (lmin, rmin) = sliding_min(nthash);
-        unsafe { std::mem::transmute::<_, u32x8>(canonical).blend(lmin, rmin) }
+        canonical.select(lmin, rmin)
     });
 
     head.by_ref().take(l - 1).for_each(drop);

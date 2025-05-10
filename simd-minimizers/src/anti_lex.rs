@@ -75,11 +75,11 @@ pub fn anti_lex_hash_seq_simd<'s>(
     let mask = S::splat(mask);
 
     add.by_ref().take(k - 1).for_each(|a| {
-        h_fw = (h_fw << b as i32) ^ a;
+        h_fw = (h_fw << S::splat(b as u32)) ^ a;
     });
 
     let it = add.map(move |a| {
-        h_fw = ((h_fw << b as i32) ^ a) & mask;
+        h_fw = ((h_fw << S::splat(b as u32)) ^ a) & mask;
         h_fw ^ anti
     });
 
@@ -102,7 +102,7 @@ pub fn anti_lex_hash_mapper<'s, Sq: Seq<'s>>(k: usize, w: usize) -> impl FnMut(S
     let mut h_fw = S::splat(0);
 
     move |a| {
-        h_fw = ((h_fw << b as i32) ^ a) & mask;
+        h_fw = ((h_fw << S::splat(b as u32)) ^ a) & mask;
         h_fw ^ anti
     }
 }

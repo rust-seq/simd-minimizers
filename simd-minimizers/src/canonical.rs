@@ -1,9 +1,11 @@
 //! Determine whether each window is canonical, when `#GT > #AC`.
-use std::mem::transmute;
+use std::{
+    mem::transmute,
+    simd::{cmp::SimdPartialOrd, i32x16, Mask},
+};
 
 use crate::S;
 use packed_seq::{PackedSeq, Seq};
-use wide::{i32x8, CmpGt};
 
 use crate::nthash::Captures;
 
@@ -50,7 +52,7 @@ pub fn canonical_windows_seq_simd<'s>(
     k: usize,
     w: usize,
 ) -> (
-    impl ExactSizeIterator<Item = i32x8> + Captures<&'s ()>,
+    impl ExactSizeIterator<Item = Mask<i32, 16>> + Captures<&'s ()>,
     usize,
 ) {
     let l = k + w - 1;
@@ -63,7 +65,7 @@ pub fn canonical_windows_seq_simd<'s>(
 }
 
 /// NOTE: First l-1 values are bogus.
-pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> i32x8 {
+pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> Mask<i32, 16> {
     let l = k + w - 1;
     assert!(
         l % 2 == 1,
@@ -72,13 +74,13 @@ pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> i32x8 {
 
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
     // TODO: Verify that the delayed removed characters are indeed 0.
-    let mut cnt = i32x8::splat(-(l as i32));
-    let two = i32x8::splat(2);
+    let mut cnt = i32x16::splat(-(l as i32));
+    let two = i32x16::splat(2);
 
     #[inline(always)]
     move |(a, r)| {
-        cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-        cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
-        cnt.cmp_gt(i32x8::splat(0))
+        cnt += unsafe { transmute::<_, i32x16>(a) } & two;
+        cnt -= unsafe { transmute::<_, i32x16>(r) } & two;
+        cnt.simd_gt(i32x16::splat(0))
     }
 }

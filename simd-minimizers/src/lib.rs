@@ -1,3 +1,4 @@
+#![feature(portable_simd, stdarch_x86_avx512)]
 //! A library to quickly compute (canonical) minimizers of DNA and text sequences.
 //!
 //! The main functions are:
@@ -156,7 +157,7 @@ pub mod private {
     pub mod sliding_min {
         pub use crate::sliding_min::*;
     }
-    pub use packed_seq::u32x8 as S;
+    pub use std::simd::u32x16 as S;
 }
 
 /// Re-export of the `packed-seq` crate.
@@ -169,8 +170,9 @@ use minimizers::{
     minimizers_seq_simd,
 };
 use nthash::{MulHasher, NtHasher};
-use packed_seq::u32x8 as S;
 use packed_seq::Seq;
+use packed_seq::L;
+use std::simd::u32x16 as S;
 
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {

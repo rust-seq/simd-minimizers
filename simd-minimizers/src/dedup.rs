@@ -371,8 +371,9 @@ const UNIQSHUF: [__m256i; 256] = unsafe {transmute([
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::simd::u32x16 as u32x8;
+    use std::simd::u32x16 as S;
     use std::time::Instant;
-    use wide::u32x8 as S;
     const L: usize = 8;
 
     #[test]
@@ -388,7 +389,7 @@ mod test {
             v1.dedup();
             eprintln!("dedup_std {} in {:?}", max, start.elapsed());
 
-            const IDX: [usize; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+            const IDX: [usize; L] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let len = len as usize;
             let chunks: Vec<S> = (0..(len / L))
                 .map(|i| S::new(IDX.map(|j| v[i * L + j])))

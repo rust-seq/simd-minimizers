@@ -76,17 +76,18 @@ def plot():
         style="canonical",
         markers=True,
         # dashes=False,
-        hue_order=["minimizer-iter", "rescan-daniel", "simd-minimizer"],
+        hue_order=["minimizer-iter", "rescan", "simd-minimizers"],
         style_order=[False, True],
         palette={
             "minimizer-iter": "black",
-            "rescan-daniel": "#a0a0a0",
-            "simd-minimizer": "#fcc007",
+            "rescan": "#a0a0a0",
+            "simd-minimizers": "#fcc007",
         },
         estimator="median",
         # Hide confidence interval
         ci=None,
     )
+    plt.xlabel("$w$")
     # log base 2
     # plt.xscale("log", base=2)
     plt.yscale("log", base=2)
@@ -119,6 +120,8 @@ def plot():
     labels.insert(4, "")
     handles.insert(10, r)
     labels.insert(10, "")
+    labels[5] = "$k$"
+
     # Put legend right of fig
     plt.legend(
         handles,

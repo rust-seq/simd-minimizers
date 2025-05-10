@@ -15,6 +15,9 @@ use std::{cell::RefCell, hint::black_box};
 use wide::u32x8;
 
 fn main() {
+    plot();
+    return;
+
     bench_human_genome();
 
     bench_short(11, 21); // sshash
@@ -84,6 +87,83 @@ fn bench_short(w: usize, k: usize) {
             }
         });
     }
+}
+
+fn plot() {
+    let n = 10_000_000;
+    // let n = 100_000_000;
+
+    for k in [5, 15, 31] {
+        for w in (1..16)
+            .step_by(2)
+            .chain((17..32).step_by(4))
+            .chain((33..50).step_by(8))
+        {
+            // for k in [5, 9, 15, 21, 31] {
+            //     for w in (1..100).step_by(2) {
+            let params = Params { n, w, k };
+
+            let ascii_seq = AsciiSeqVec::random(n);
+            let plain_seq = &ascii_seq.seq;
+            let packed_seq = PackedSeqVec::from_ascii(&ascii_seq.seq);
+            let packed_seq = packed_seq.as_slice();
+
+            eprintln!("\nMinimizers w = {w} k = {k}");
+
+            type H = NtHasher;
+
+            let v2 = &mut vec![];
+            // warmup
+            {
+                collect::collect_into(
+                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                    v2,
+                );
+                v2.clear();
+                collect::collect_and_dedup_into::<false>(
+                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                    v2,
+                );
+                v2.clear();
+            }
+
+            {
+                time("simd-minimizer", params, || {
+                    v2.clear();
+                    minimizer_positions(packed_seq, k, w, v2);
+                });
+                time("canonical simd-minimizer", params, || {
+                    v2.clear();
+                    canonical_minimizer_positions(packed_seq, k, w, v2);
+                });
+
+                time_v(v2, "minimizer-iter", params, || {
+                    minimizer_iter::MinimizerBuilder::<u64>::new()
+                        .minimizer_size(k)
+                        .width(w as u16)
+                        .iter_pos(plain_seq)
+                        .map(|x| x as u32)
+                });
+                time_v(v2, "canonical minimizer-iter", params, || {
+                    minimizer_iter::MinimizerBuilder::<u64>::new()
+                        .canonical()
+                        .minimizer_size(k)
+                        .width(w as u16)
+                        .iter_pos(plain_seq)
+                        .map(|x| x.0 as u32)
+                });
+                time("rescan-daniel", params, || {
+                    v2.clear();
+                    minimizers_callback::<true, false>(plain_seq, k + w - 1, k, |pos| {
+                        v2.push(pos as u32);
+                    });
+                });
+            }
+        }
+    }
+    let results = RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
+    let json = serde_json::to_string(&results).unwrap();
+    std::fs::write("results-plot.json", json).unwrap();
 }
 
 fn bench_minimizers(w: usize, k: usize) {

@@ -159,7 +159,7 @@ pub fn sliding_min_simd<const LEFT: bool>(
 pub fn sliding_min_mapper<const LEFT: bool>(w: usize, k: usize, len: usize) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
-    assert!(len * 8 < (1 << 32));
+    assert!(len * 16 < (1 << 32));
     let mut prefix_min = S::splat(u32::MAX);
     let mut ring_buf = RingBuf::new(w, prefix_min);
     // We only compare the upper 16 bits of each hash.

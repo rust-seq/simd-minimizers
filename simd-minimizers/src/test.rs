@@ -177,6 +177,7 @@ fn minimizers_fwd() {
             let len = ascii_seq.len();
             assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
             assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+            eprintln!("{naive:?}\n{simd_ascii:?}\n{simd_packed:?}");
             assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
             assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
         });

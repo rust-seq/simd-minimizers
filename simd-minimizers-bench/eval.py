@@ -129,6 +129,9 @@ def plot():
         bbox_transform=plt.gca().transAxes,
     )
 
+    # figsize
+    plt.gcf().set_size_inches(6, 4)
+
     plt.savefig("results-plot.png", bbox_inches="tight", dpi=300)
     plt.savefig("results-plot.svg", bbox_inches="tight")
     # plt.show()

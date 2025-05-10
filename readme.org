@@ -56,3 +56,6 @@ To replicate results from the paper, go into =simd-minimizers-bench= and run
 RUSTFLAGS="-C target-cpu=native" cargo +nightly run --release
 python eval.py
 #+end_src
+
+The human genome we use is from the T2T consortium, and available by following
+the first link [[https://github.com/marbl/CHM13?tab=readme-ov-file#t2t-chm13v20-t2t-chm13y][here]].

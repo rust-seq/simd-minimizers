@@ -53,7 +53,11 @@ pub fn read_human_genome(chromosomes: usize) -> Vec<PackedSeqVec> {
     let start = std::time::Instant::now();
     let mut out = vec![];
     let Ok(mut reader) = needletail::parse_fastx_file("human-genome.fa") else {
-        eprintln!("Did not find human-genome.fa. Add/symlink it to test runtime on it.");
+        eprintln!(
+            "Did not find human-genome.fa. Add/symlink it to test runtime on it.
+Download and then unzip it from the first link here: https://github.com/marbl/CHM13?tab=readme-ov-file#t2t-chm13v20-t2t-chm13y
+"
+        );
         return out;
     };
     let mut i = 0;

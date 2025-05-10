@@ -85,7 +85,7 @@ def plot():
         },
         estimator="median",
         # Hide confidence interval
-        ci=None,
+        errorbar=None,
     )
     plt.xlabel("$w$")
     # log base 2

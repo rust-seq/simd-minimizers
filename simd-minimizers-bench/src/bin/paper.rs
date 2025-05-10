@@ -74,13 +74,13 @@ fn bench_short(w: usize, k: usize) {
 
         let params = Params { n: total_len, w, k };
 
-        time(&format!("simd-minimizer {n}"), params, || {
+        time(&format!("simd-minimizers {n}"), params, || {
             for s in &packed_seqs {
                 v.clear();
                 minimizer_positions(s.as_slice(), k, w, v);
             }
         });
-        time(&format!("canonical simd-minimizer {n}"), params, || {
+        time(&format!("canonical simd-minimizers {n}"), params, || {
             for s in &packed_seqs {
                 v.clear();
                 canonical_minimizer_positions(s.as_slice(), k, w, v);
@@ -128,11 +128,11 @@ fn plot() {
             }
 
             {
-                time("simd-minimizer", params, || {
+                time("simd-minimizers", params, || {
                     v2.clear();
                     minimizer_positions(packed_seq, k, w, v2);
                 });
-                time("canonical simd-minimizer", params, || {
+                time("canonical simd-minimizers", params, || {
                     v2.clear();
                     canonical_minimizer_positions(packed_seq, k, w, v2);
                 });
@@ -152,7 +152,7 @@ fn plot() {
                         .iter_pos(plain_seq)
                         .map(|x| x.0 as u32)
                 });
-                time("rescan-daniel", params, || {
+                time("rescan", params, || {
                     v2.clear();
                     minimizers_callback::<true, false>(plain_seq, k + w - 1, k, |pos| {
                         v2.push(pos as u32);
@@ -281,19 +281,19 @@ fn bench_minimizers(w: usize, k: usize) {
             *e.borrow_mut() = "external".to_string();
         });
         eprintln!("\nFinal functions\n");
-        time("simd-minimizer", params, || {
+        time("simd-minimizers", params, || {
             v2.clear();
             minimizer_positions(packed_seq, k, w, v2);
         });
-        time("canonical simd-minimizer", params, || {
+        time("canonical simd-minimizers", params, || {
             v2.clear();
             canonical_minimizer_positions(packed_seq, k, w, v2);
         });
-        time("mul simd-minimizer", params, || {
+        time("mul simd-minimizers", params, || {
             v2.clear();
             mul_hash::minimizer_positions(packed_seq, k, w, v2);
         });
-        time("mul canonical simd-minimizer", params, || {
+        time("mul canonical simd-minimizers", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(packed_seq, k, w, v2);
         });
@@ -302,25 +302,25 @@ fn bench_minimizers(w: usize, k: usize) {
 
         if false {
             let mut packed_seq = PackedSeqVec::from_ascii(&seq);
-            time("pack simd-minimizer", params, || {
+            time("pack simd-minimizers", params, || {
                 v2.clear();
                 packed_seq.len = 0;
                 packed_seq.push_ascii(&seq);
                 minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
-            time("pack canonical simd-minimizer", params, || {
+            time("pack canonical simd-minimizers", params, || {
                 v2.clear();
                 packed_seq.len = 0;
                 packed_seq.push_ascii(&seq);
                 canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
-            time("pack mul simd-minimizer", params, || {
+            time("pack mul simd-minimizers", params, || {
                 v2.clear();
                 packed_seq.len = 0;
                 packed_seq.push_ascii(&seq);
                 mul_hash::minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
-            time("pack mul canonical simd-minimizer", params, || {
+            time("pack mul canonical simd-minimizers", params, || {
                 v2.clear();
                 packed_seq.len = 0;
                 packed_seq.push_ascii(&seq);
@@ -328,29 +328,29 @@ fn bench_minimizers(w: usize, k: usize) {
             });
         }
 
-        time("ascii-dna simd-minimizer", params, || {
+        time("ascii-dna simd-minimizers", params, || {
             v2.clear();
             minimizer_positions(ascii_seq, k, w, v2);
         });
-        time("ascii-dna canonical simd-minimizer", params, || {
+        time("ascii-dna canonical simd-minimizers", params, || {
             v2.clear();
             canonical_minimizer_positions(ascii_seq, k, w, v2);
         });
 
-        time("ascii-dna mul simd-minimizer", params, || {
+        time("ascii-dna mul simd-minimizers", params, || {
             v2.clear();
             mul_hash::minimizer_positions(ascii_seq, k, w, v2);
         });
-        time("ascii-dna mul canonical simd-minimizer", params, || {
+        time("ascii-dna mul canonical simd-minimizers", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(ascii_seq, k, w, v2);
         });
 
-        time("ascii mul simd-minimizer", params, || {
+        time("ascii mul simd-minimizers", params, || {
             v2.clear();
             mul_hash::minimizer_positions(&seq[..], k, w, v2);
         });
-        time("ascii mul canonical simd-minimizer", params, || {
+        time("ascii mul canonical simd-minimizers", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(&seq[..], k, w, v2);
         });
@@ -361,11 +361,11 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nENGLISH\n");
         let seq = &std::fs::read("english.200MB").unwrap()[..n];
 
-        time("ascii mul simd-minimizer EN", params, || {
+        time("ascii mul simd-minimizers EN", params, || {
             v2.clear();
             mul_hash::minimizer_positions(seq, k, w, v2);
         });
-        time("ascii mul canonical simd-minimizer EN", params, || {
+        time("ascii mul canonical simd-minimizers EN", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(seq, k, w, v2);
         });
@@ -374,11 +374,11 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nSOURCES\n");
         let seq = &std::fs::read("sources.200MB").unwrap()[..n];
 
-        time("ascii mul simd-minimizer SRC", params, || {
+        time("ascii mul simd-minimizers SRC", params, || {
             v2.clear();
             mul_hash::minimizer_positions(seq, k, w, v2);
         });
-        time("ascii mul canonical simd-minimizer SRC", params, || {
+        time("ascii mul canonical simd-minimizers SRC", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(seq, k, w, v2);
         });
@@ -415,13 +415,13 @@ fn bench_minimizers(w: usize, k: usize) {
                 .iter_pos(plain_seq)
                 .map(|x| x.0 as u32)
         });
-        time("rescan-daniel", params, || {
+        time("rescan", params, || {
             v2.clear();
             minimizers_callback::<true, false>(plain_seq, k + w - 1, k, |pos| {
                 v2.push(pos as u32);
             });
         });
-        time("mul rescan-daniel", params, || {
+        time("mul rescan", params, || {
             v2.clear();
             minimizers_callback::<true, true>(plain_seq, k + w - 1, k, |pos| {
                 v2.push(pos as u32);
@@ -555,8 +555,7 @@ fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
         black_box(f());
         let elapsed = start.elapsed().as_secs_f64();
         let elapsed_per = elapsed * 1_000_000_000. / params.n as f64;
-        println!("{name:<40}: {:6.2} s", elapsed);
-        println!("{name:<40}: {:6.2} ns/elem", elapsed_per);
+        println!("{name:<40}: {:6.2} s {:6.2} ns/elem", elapsed, elapsed_per);
         RESULTS.with(|r| {
             r.borrow_mut().push(Result {
                 experiment: EXPERIMENT.with(|e| e.borrow().clone()),
@@ -564,7 +563,7 @@ fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
                 n: params.n,
                 k: params.k,
                 w: params.w,
-                time: elapsed,
+                time: elapsed_per,
             })
         });
     }

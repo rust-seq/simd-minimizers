@@ -93,7 +93,7 @@ fn plot() {
     let n = 10_000_000;
     // let n = 100_000_000;
 
-    for k in [5, 15, 31] {
+    for k in [5, 11, 19, 31] {
         for w in (1..16)
             .step_by(2)
             .chain((17..32).step_by(4))

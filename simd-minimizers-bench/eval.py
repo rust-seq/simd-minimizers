@@ -2,6 +2,7 @@
 
 import pandas as pd
 from pathlib import Path
+import matplotlib
 import matplotlib.pyplot as plt
 import tabulate
 import seaborn as sns
@@ -75,11 +76,64 @@ def plot():
         style="canonical",
         markers=True,
         # dashes=False,
+        hue_order=["minimizer-iter", "rescan-daniel", "simd-minimizer"],
+        style_order=[False, True],
+        palette={
+            "minimizer-iter": "black",
+            "rescan-daniel": "#a0a0a0",
+            "simd-minimizer": "#fcc007",
+        },
+        estimator="median",
+        # Hide confidence interval
+        ci=None,
     )
     # log base 2
     # plt.xscale("log", base=2)
+    plt.yscale("log", base=2)
+    # Set y label
+    plt.ylabel("Time (ns/base)")
+    # Set y tick labels
+    plt.yticks([1, 2, 4, 8, 16], ["1", "2", "4", "8", "16"])
+    plt.yticks([1.5, 3, 6, 12, 24], ["1.5", "3", "6", "12", "24"], minor=True)
+
+    # Show horizontal grid lines
+    plt.grid(axis="y", which="major", color="gray")
+    plt.grid(axis="y", which="minor", color="lightgray", linestyle="--")
+
+    # Move legend below.
+    handles, labels = plt.gca().get_legend_handles_labels()
+    handles.pop(0)
+    labels.pop(0)
+    handles.pop(8)
+    labels.pop(8)
+    handles.insert(8, handles.pop(9))
+    labels[8] = "Canonical"
+    labels[9] = "Forward"
+
+    r = matplotlib.patches.Rectangle(
+        (0, 0), 1, 1, fill=False, edgecolor="none", visible=False
+    )
+    handles.insert(0, r)
+    labels.insert(0, "Algorithm")
+    handles.insert(4, r)
+    labels.insert(4, "")
+    handles.insert(10, r)
+    labels.insert(10, "")
+    # Put legend right of fig
+    plt.legend(
+        handles,
+        labels,
+        title="",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        bbox_transform=plt.gca().transAxes,
+    )
+
+    plt.savefig("results-plot.png", bbox_inches="tight", dpi=300)
     plt.savefig("results-plot.svg", bbox_inches="tight")
-    plt.show()
+    # plt.show()
+
+    plt.close()
 
 
 # table()

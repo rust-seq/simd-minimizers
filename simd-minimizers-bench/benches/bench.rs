@@ -3,7 +3,7 @@
 #![feature(portable_simd)]
 #![allow(dead_code)]
 use itertools::Itertools;
-use packed_seq::{PackedSeq, PackedSeqVec, SeqVec};
+use packed_seq::{PackedSeq, PackedSeqVec, SeqVec, L};
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions,
     private::{
@@ -248,8 +248,8 @@ fn local_nthash(c: &mut Criterion) {
         b.iter(|| {
             NtHashSimd::<true>
                 .hash_kmers(k, packed_text)
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
+                .map(|x| Simd::<u32, L>::from(x))
+                .sum::<Simd<u32, L>>()
         });
     });
 
@@ -263,8 +263,8 @@ fn local_nthash(c: &mut Criterion) {
         b.iter(|| {
             FxHashSimd
                 .hash_kmers(k, packed_text)
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
+                .map(|x| Simd::<u32, L>::from(x))
+                .sum::<Simd<u32, L>>()
         });
     });
 
@@ -314,8 +314,8 @@ fn simd_minimizer(c: &mut Criterion) {
         b.iter(|| {
             SplitSimd
                 .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
+                .map(|x| Simd::<u32, L>::from(x))
+                .sum::<Simd<u32, L>>()
         });
     });
 
@@ -325,8 +325,8 @@ fn simd_minimizer(c: &mut Criterion) {
         b.iter(|| {
             SplitSimd
                 .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
+                .map(|x| Simd::<u32, L>::from(x))
+                .sum::<Simd<u32, L>>()
         });
     });
 

@@ -90,7 +90,7 @@ impl SplitSimd {
         w: usize,
         it: impl Iterator<Item = [u32; L]>,
     ) -> impl Iterator<Item = [u32; L]> {
-        type S = Simd<u32, 8>;
+        type S = Simd<u32, L>;
 
         assert!(w > 0);
         let mut prefix_min = S::splat(u32::MAX);

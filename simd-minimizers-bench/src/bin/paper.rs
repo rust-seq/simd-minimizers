@@ -1,3 +1,4 @@
+#![feature(portable_simd)]
 use itertools::Itertools;
 use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Seq, SeqVec};
 use rand::{random_range, Rng};
@@ -12,6 +13,7 @@ use simd_minimizers::{
 };
 use simd_minimizers_bench::*;
 use std::simd::u32x16 as u32x8;
+
 use std::simd::u32x16 as S;
 use std::{cell::RefCell, hint::black_box};
 

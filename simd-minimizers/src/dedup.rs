@@ -2,8 +2,6 @@ use crate::S;
 use core::arch::x86_64::__m256i;
 use core::mem::transmute;
 
-const L: usize = 256 / 32;
-
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
 #[inline(always)]
@@ -45,7 +43,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
         let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
 
         let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
-        let numberofnewvalues = L - m.count_ones() as usize;
+        let numberofnewvalues = 8 - m.count_ones() as usize;
         let key = UNIQSHUF[m];
         let val = _mm256_permutevar8x32_epi32(vals, key);
         _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
@@ -93,7 +91,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
         let m2 = vpaddd_u64(vpaddlq_u32(transmute(d2 & pow2)));
         let m = (m1 | m2) as usize;
 
-        let numberofnewvalues = L - m.count_ones() as usize;
+        let numberofnewvalues = 8 - m.count_ones() as usize;
         let key = UNIQSHUF[m];
         let idx = key * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
         let (i1, i2) = transmute(idx);

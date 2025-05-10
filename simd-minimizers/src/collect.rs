@@ -125,7 +125,7 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
             if i % L == L - 1 {
                 let t = transpose(m);
                 offsets += u32x8::splat((L as u32) << 16);
-                for j in 0..8 {
+                for j in 0..L {
                     let lane = t[j];
                     let vals = if SUPER {
                         // High 16 bits are the index where the minimizer first becomes minimal.
@@ -165,14 +165,14 @@ pub fn collect_and_dedup_into<const SUPER: bool>(
             i += 1;
         });
 
-        for j in 0..8 {
+        for j in 0..L {
             v[j].truncate(write_idx[j]);
         }
 
         // Manually write the unfinished parts of length k=i%8.
         let t = transpose(m);
-        let k = i % 8;
-        for j in 0..8 {
+        let k = i % L;
+        for j in 0..L {
             let lane = &unsafe { transmute::<_, [u32; L]>(t[j]) }[..k];
             for x in lane {
                 if v[j].last() != Some(x) {

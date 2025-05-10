@@ -432,43 +432,59 @@ fn bench_minimizers(w: usize, k: usize) {
 
 fn bench_human_genome() {
     let seqs = read_human_genome(usize::MAX);
+    let n = seqs.iter().map(|s| s.len()).sum::<usize>();
+
     let mut v = Vec::new();
-    let n = 1;
-    let w = 11;
-    let k = 21;
 
-    time("hg-fwd", Params { n, k, w }, || {
-        for seq in &seqs {
-            minimizer_positions(seq.as_slice(), k, w, &mut v);
-            black_box(&mut v).clear();
-        }
-    });
-    time("hg-canonical", Params { n, k, w }, || {
-        for seq in &seqs {
-            canonical_minimizer_positions(seq.as_slice(), k, w, &mut v);
-            black_box(&mut v).clear();
-        }
-    });
+    for (w, k) in [(11, 21), (19, 19)] {
+        let mut minis = 0;
+        time("hg-fwd", Params { n, k, w }, || {
+            let mut c = 0;
+            for seq in &seqs {
+                minimizer_positions(seq.as_slice(), k, w, &mut v);
+                c += v.len();
+                black_box(&mut v).clear();
+            }
+            minis = c;
+        });
+        eprintln!(
+            "Total fwd minimizers: {minis}, density = {}",
+            minis as f64 / n as f64
+        );
+        time("hg-canonical", Params { n, k, w }, || {
+            let mut c = 0;
+            for seq in &seqs {
+                canonical_minimizer_positions(seq.as_slice(), k, w, &mut v);
+                c += v.len();
+                black_box(&mut v).clear();
+            }
+            minis = c;
+        });
+        eprintln!(
+            "Total can minimizers: {minis}, density = {}",
+            minis as f64 / n as f64
+        );
 
-    thread_local! {
-        static V: RefCell<Vec<u32>> = RefCell::new(vec![]);
+        thread_local! {
+            static V: RefCell<Vec<u32>> = RefCell::new(vec![]);
+        }
+        time("hg-fwd-par", Params { n, k, w }, || {
+            seqs.par_iter().for_each(|seq| {
+                V.with_borrow_mut(|v| {
+                    minimizer_positions(seq.as_slice(), k, w, v);
+                    black_box(v).clear();
+                });
+            });
+        });
+        time("hg-canonical-par", Params { n, k, w }, || {
+            seqs.par_iter().for_each(|seq| {
+                V.with_borrow_mut(|v| {
+                    canonical_minimizer_positions(seq.as_slice(), k, w, v);
+                    black_box(v).clear();
+                });
+            });
+        });
     }
-    time("hg-fwd-par", Params { n, k, w }, || {
-        seqs.par_iter().for_each(|seq| {
-            V.with_borrow_mut(|v| {
-                minimizer_positions(seq.as_slice(), k, w, v);
-                black_box(v).clear();
-            });
-        });
-    });
-    time("hg-canonical-par", Params { n, k, w }, || {
-        seqs.par_iter().for_each(|seq| {
-            V.with_borrow_mut(|v| {
-                canonical_minimizer_positions(seq.as_slice(), k, w, v);
-                black_box(v).clear();
-            });
-        });
-    });
 }
 
 #[allow(unused)]
@@ -537,8 +553,10 @@ fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
     for _ in 0..REPEATS {
         let start = std::time::Instant::now();
         black_box(f());
-        let elapsed = start.elapsed().as_secs_f64() * 1_000_000_000. / params.n as f64;
-        println!("{name:<40}: {:6.2} ns/elem", elapsed);
+        let elapsed = start.elapsed().as_secs_f64();
+        let elapsed_per = elapsed * 1_000_000_000. / params.n as f64;
+        println!("{name:<40}: {:6.2} s", elapsed);
+        println!("{name:<40}: {:6.2} ns/elem", elapsed_per);
         RESULTS.with(|r| {
             r.borrow_mut().push(Result {
                 experiment: EXPERIMENT.with(|e| e.borrow().clone()),

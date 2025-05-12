@@ -16,7 +16,6 @@ use wide::u32x8;
 
 fn main() {
     plot();
-    return;
 
     bench_human_genome();
 

@@ -142,5 +142,5 @@ def plot():
     plt.close()
 
 
-# table()
+table()
 plot()

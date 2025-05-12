@@ -15,21 +15,29 @@ use std::{cell::RefCell, hint::black_box};
 use wide::u32x8;
 
 fn main() {
-    plot();
+    // Experiments for the (w,k) plot.
+    // Written to results-plot.json.
+    // plot();
 
-    bench_human_genome();
-
-    bench_short(11, 21); // sshash
-
+    // Experiments for the main result tables.
     bench_minimizers(5, 31); // kraken
     bench_minimizers(11, 21); // sshash
     bench_minimizers(19, 19); // minimap
 
-    // bench_sliding_min();
-
     let results = RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
     let json = serde_json::to_string(&results).unwrap();
     std::fs::write("results.json", json).unwrap();
+
+    // Additional experiments for human genome density and multithreaded results.
+    bench_human_genome();
+
+    // Experiment to test speed on short sequences.
+    // Not in the paper.
+    // bench_short(11, 21);
+
+    // Experiment to compare sliding window minima algorithms.
+    // Not in the paper.
+    // bench_sliding_min();
 }
 
 thread_local! {
@@ -54,6 +62,7 @@ struct Result {
     time: f64,
 }
 
+#[allow(unused)]
 fn bench_short(w: usize, k: usize) {
     let total_len = 1 << 20;
     EXPERIMENT.with(|e| {
@@ -356,7 +365,7 @@ fn bench_minimizers(w: usize, k: usize) {
     }
 
     //
-    if true {
+    if false {
         eprintln!("\nENGLISH\n");
         let seq = &std::fs::read("english.200MB").unwrap()[..n];
 

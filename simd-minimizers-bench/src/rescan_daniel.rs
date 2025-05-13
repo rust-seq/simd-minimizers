@@ -3,7 +3,7 @@ use std::hint::black_box;
 use super::*;
 
 /// This implementation is mostly copied from Daniel Liu's gist:
-/// https://gist.github.com/Daniel-Liu-c0deb0t/7078ebca04569068f15507aa856be6e8
+/// <https://gist.github.com/Daniel-Liu-c0deb0t/7078ebca04569068f15507aa856be6e8>
 ///
 /// Modifications:
 /// 1. Add a wrapper type to implement our Minimizer trait.

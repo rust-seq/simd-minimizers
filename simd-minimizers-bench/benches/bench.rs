@@ -7,7 +7,7 @@ use packed_seq::{PackedSeq, PackedSeqVec, SeqVec};
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions,
     private::{
-        collect::{collect_and_dedup_into, collect_into},
+        collect::{collect_and_dedup_with_index_into, collect_into},
         minimizers::*,
         nthash::{nthash_seq_simd, NtHasher},
         S,
@@ -427,10 +427,12 @@ fn simd_minimizer(c: &mut Criterion) {
             BenchmarkId::new("minimizer_collect_and_dedup_super", len),
             |b| {
                 let mut vec = Vec::new();
+                let mut vec2 = Vec::new();
                 b.iter(|| {
                     let head_tail = minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w);
-                    collect_and_dedup_into::<true>(head_tail, &mut vec);
+                    collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
+                    black_box(&mut vec2).clear();
                 });
             },
         );
@@ -453,9 +455,10 @@ fn simd_minimizer(c: &mut Criterion) {
             BenchmarkId::new("minimizer_canonical_dedup__super", len),
             |b| {
                 let mut vec = Vec::new();
+                let mut vec2 = Vec::new();
                 b.iter(|| {
                     let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w);
-                    collect_and_dedup_into::<true>(head_tail, &mut vec);
+                    collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                 })
             },

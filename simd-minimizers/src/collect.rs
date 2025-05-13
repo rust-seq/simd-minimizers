@@ -76,14 +76,11 @@ pub fn collect_and_dedup<const SUPER: bool>(
 
 /// Convenience wrapper around `collect_and_dedup_with_index_into`.
 pub fn collect_and_dedup_with_index(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
 ) -> (Vec<u32>, Vec<u32>) {
     let mut v = vec![];
     let mut v2 = vec![];
-    collect_and_dedup_with_index_into((par_head, tail), &mut v, &mut v2);
+    collect_and_dedup_with_index_into((par_head, padding), &mut v, &mut v2);
     (v, v2)
 }
 
@@ -96,7 +93,7 @@ pub fn collect_and_dedup_into(
     (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
 ) {
-    collect_and_dedup_into_impl::<false>((par_head, tail), out_vec, &mut vec![]);
+    collect_and_dedup_into_impl::<false>((par_head, padding), out_vec, &mut vec![]);
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -105,11 +102,11 @@ pub fn collect_and_dedup_into(
 /// The deduplicated input values are written in `out_vec` and the index of the stream it first appeared, i.e., the start of its super-k-mer, is written in `idx_vec`.
 #[inline(always)]
 pub fn collect_and_dedup_with_index_into(
-    (par_head, tail): (impl ExactSizeIterator<Item = S>, usize),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
     idx_vec: &mut Vec<u32>,
 ) {
-    collect_and_dedup_into_impl::<true>((par_head, tail), out_vec, idx_vec);
+    collect_and_dedup_into_impl::<true>((par_head, padding), out_vec, idx_vec);
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -119,10 +116,7 @@ pub fn collect_and_dedup_with_index_into(
 /// When `SUPER` is true, the index of the stream in which the input value first appeared, i.e., the start of its super-k-mer, is additionale written in `idx_vec`.
 #[inline(always)]
 fn collect_and_dedup_into_impl<const SUPER: bool>(
-    (par_head, tail): (
-        impl ExactSizeIterator<Item = S>,
-        impl ExactSizeIterator<Item = u32>,
-    ),
+    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
     out_vec: &mut Vec<u32>,
     idx_vec: &mut Vec<u32>,
 ) {

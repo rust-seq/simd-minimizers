@@ -135,9 +135,6 @@ mod sliding_min;
 #[cfg(test)]
 mod test;
 
-// TODO: Old and in-development modules.
-// mod linearize;
-
 /// Re-exported internals. Used for benchmarking, and not part of the semver-compatible stable API.
 pub mod private {
     pub mod anti_lex {

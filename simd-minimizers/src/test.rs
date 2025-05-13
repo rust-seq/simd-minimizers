@@ -213,9 +213,9 @@ fn minimizers_canonical() {
 fn minimizer_positions() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let mut scalar_ascii = vec![];
-        minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
+        scalar::minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
         let mut scalar_packed = vec![];
-        minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        scalar::minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
         let mut simd_ascii = vec![];
         super::minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
         let mut simd_packed = vec![];
@@ -235,9 +235,9 @@ fn canonical_minimizer_positions() {
             return;
         }
         let mut scalar_ascii = vec![];
-        canonical_minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
+        scalar::canonical_minimizer_positions_scalar(ascii_seq, k, w, &mut scalar_ascii);
         let mut scalar_packed = vec![];
-        canonical_minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
+        scalar::canonical_minimizer_positions_scalar(packed_seq, k, w, &mut scalar_packed);
         let mut simd_ascii = vec![];
         super::canonical_minimizer_positions(ascii_seq, k, w, &mut simd_ascii);
         let mut simd_packed = vec![];
@@ -255,10 +255,16 @@ fn minimizer_and_superkmer_positions() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let scalar_ascii = &mut vec![];
         let scalar_ascii_skmer = &mut vec![];
-        minimizer_and_superkmer_positions_scalar(ascii_seq, k, w, scalar_ascii, scalar_ascii_skmer);
+        scalar::minimizer_and_superkmer_positions_scalar(
+            ascii_seq,
+            k,
+            w,
+            scalar_ascii,
+            scalar_ascii_skmer,
+        );
         let scalar_packed = &mut vec![];
         let scalar_packed_skmer = &mut vec![];
-        minimizer_and_superkmer_positions_scalar(
+        scalar::minimizer_and_superkmer_positions_scalar(
             packed_seq,
             k,
             w,
@@ -319,7 +325,7 @@ fn canonical_minimizer_and_superkmer_positions() {
         }
         let mut scalar_ascii = vec![];
         let mut scalar_ascii_skmer = vec![];
-        canonical_minimizer_and_superkmer_positions_scalar(
+        scalar::canonical_minimizer_and_superkmer_positions_scalar(
             ascii_seq,
             k,
             w,
@@ -328,7 +334,7 @@ fn canonical_minimizer_and_superkmer_positions() {
         );
         let mut scalar_packed = vec![];
         let mut scalar_packed_skmer = vec![];
-        canonical_minimizer_and_superkmer_positions_scalar(
+        scalar::canonical_minimizer_and_superkmer_positions_scalar(
             packed_seq,
             k,
             w,

@@ -3,13 +3,14 @@ use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Se
 use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use simd_minimizers::{
-    canonical_minimizer_positions, canonical_minimizer_positions_scalar, minimizer_positions,
-    minimizer_positions_scalar, mul_hash,
+    canonical_minimizer_positions, minimizer_positions, mul_hash,
     private::{
         nthash::{self, nthash_mapper, NtHasher},
         sliding_min::sliding_min_mapper,
         *,
     },
+    scalar::canonical_minimizer_positions_scalar,
+    scalar::minimizer_positions_scalar,
 };
 use simd_minimizers_bench::*;
 use std::{cell::RefCell, hint::black_box};
@@ -411,11 +412,11 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nSCALAR\n");
         time("positions scalar", params, || {
             v2.clear();
-            simd_minimizers::minimizer_positions_scalar(packed_seq, k, w, v2);
+            simd_minimizers::scalar::minimizer_positions_scalar(packed_seq, k, w, v2);
         });
         time("canonical positions scalar", params, || {
             v2.clear();
-            simd_minimizers::canonical_minimizer_positions_scalar(packed_seq, k, w, v2);
+            simd_minimizers::scalar::canonical_minimizer_positions_scalar(packed_seq, k, w, v2);
         });
     }
 

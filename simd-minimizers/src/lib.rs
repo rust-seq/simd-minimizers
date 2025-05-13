@@ -6,11 +6,13 @@
 //! Adjacent equal positions are deduplicated, but since the canonical minimizer is _not_ _forward_, a position could appear more than once.
 //!
 //! The implementation uses SIMD by splitting each sequence into 8 chunks and processing those in parallel.
-//! The [`minimizer_positions_scalar`] and [`canonical_minimizer_positions_scalar`] versions can be more efficient on short sequences where the overhead of chunking is large.
 //!
 //! When using super-k-mers, use the `_and_superkmer` variants to additionally return a vector containing the index of the first window the minimizer is minimal.
 //!
 //! The minimizer of a single window can be found using [`one_minimizer`] and [`one_canonical_minimizer`], but note that these functions are not nearly as efficient.
+//!
+//! The `_scalar` versions are mostly for testing only, and basically always slower.
+//! Only for short sequences with length up to 100 is [`minimizer_positions_scalar`] faster than the SIMD version.
 //!
 //! ## Minimizers
 //!

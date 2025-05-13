@@ -3,7 +3,8 @@ use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, Se
 use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use simd_minimizers::{
-    canonical_minimizer_positions, minimizer_positions, mul_hash,
+    canonical_minimizer_positions, canonical_minimizer_positions_scalar, minimizer_positions,
+    minimizer_positions_scalar, mul_hash,
     private::{
         nthash::{self, nthash_mapper, NtHasher},
         sliding_min::sliding_min_mapper,
@@ -81,17 +82,30 @@ fn bench_short(w: usize, k: usize) {
             .collect_vec();
 
         let params = Params { n: total_len, w, k };
+        eprintln!("{n}..{}", 2 * n);
 
-        time(&format!("simd-minimizers {n}"), params, || {
+        time(&format!("simd-minimizers"), params, || {
             for s in &packed_seqs {
                 v.clear();
                 minimizer_positions(s.as_slice(), k, w, v);
             }
         });
-        time(&format!("canonical simd-minimizers {n}"), params, || {
+        time(&format!("simd-minimizers scalar"), params, || {
+            for s in &packed_seqs {
+                v.clear();
+                minimizer_positions_scalar(s.as_slice(), k, w, v);
+            }
+        });
+        time(&format!("canonical simd-minimizers"), params, || {
             for s in &packed_seqs {
                 v.clear();
                 canonical_minimizer_positions(s.as_slice(), k, w, v);
+            }
+        });
+        time(&format!("canonical simd-minimizers scalar"), params, || {
+            for s in &packed_seqs {
+                v.clear();
+                canonical_minimizer_positions_scalar(s.as_slice(), k, w, v);
             }
         });
     }

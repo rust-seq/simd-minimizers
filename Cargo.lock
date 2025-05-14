@@ -387,9 +387,9 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "mem_dbg"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83623b4167d3fbfb0f60eaa0cfd0f303a44e50f35a41b8d6bce87ad9d3e81410"
+checksum = "a3e3eb8a4c851185832fb250e5c041e74f4408e11fd56263cc1f61b48f9174f5"
 dependencies = [
  "bitflags",
  "mem_dbg-derive",
@@ -397,9 +397,9 @@ dependencies = [
 
 [[package]]
 name = "mem_dbg-derive"
-version = "0.1.7"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ac4642a5a1615ce3cdd3479f8d03c05068aab5a285a0722a24d5080d3f3e22"
+checksum = "f266c6ba1558dee16c56363c3dc6093a97a2451ddf29f928d5da042ee330537b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -495,8 +495,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "packed-seq"
-version = "1.0.2"
-source = "git+https://github.com/rust-seq/packed-seq.git#33424ccf5dfc3369fb5dce25157cedc58563d484"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28884cb8a1678a01bd92eec6e39ef44537ebb30b53aceaab98f4931ee70b42bf"
 dependencies = [
  "cfg-if",
  "mem_dbg",

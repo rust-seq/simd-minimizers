@@ -12,7 +12,7 @@ description = "A SIMD-accelerated library to compute random minimizers"
 [dependencies]
 itertools = "0.14"
 packed-seq.workspace = true
-wide = "0.7.30"
+wide = "0.7"
 
 [dev-dependencies]
 rand = "0.9"

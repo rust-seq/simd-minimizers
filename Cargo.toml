@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "simd-minimizers",
-    "simd-minimizers-bench",
-]
+members = ["simd-minimizers", "simd-minimizers-bench"]
 resolver = "2"
 
 [profile.release]
@@ -11,4 +8,4 @@ incremental = true
 debug = true
 
 [workspace.dependencies]
-packed-seq.git = "https://github.com/rust-seq/packed-seq.git"
+packed-seq = "2.0"

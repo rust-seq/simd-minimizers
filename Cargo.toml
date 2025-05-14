@@ -8,4 +8,5 @@ incremental = true
 debug = true
 
 [workspace.dependencies]
-packed-seq = "2.0"
+# packed-seq = "2.0"
+packed-seq.git = "https://github.com/rust-seq/packed-seq"

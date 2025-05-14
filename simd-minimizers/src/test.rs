@@ -39,9 +39,10 @@ fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     for &k in &ks {
         for &w in &ws {
             for &len in &lens {
-                let slice = slice.slice(0..len);
-                let ascii_seq = ascii_seq.slice(0..len);
-                let packed_seq = packed_seq.slice(0..len);
+                let offset = rng.random_range(0..=3.min(len));
+                let slice = slice.slice(offset..len);
+                let ascii_seq = ascii_seq.slice(offset..len);
+                let packed_seq = packed_seq.slice(offset..len);
 
                 f(k, w, slice, ascii_seq, packed_seq);
             }

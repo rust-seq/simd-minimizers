@@ -123,6 +123,12 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
     CACHE.with(|v| {
         let mut v = v.borrow_mut();
         let (v, v2) = v.split_at_mut(8);
+        if SUPER {
+            // make sure out cache and idx cache have the same size at the start
+            for i in 0..8 {
+                v2[i].resize(v[i].len(), 0);
+            }
+        }
 
         let mut write_idx = [0; 8];
         // Vec of last pushed elements in each lane.
@@ -188,8 +194,8 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
                                 &mut write_idx[j],
                             );
                         }
-                        old[j] = lane;
                     }
+                    old[j] = lane;
                 }
                 offsets += u32x8::splat(8);
             }

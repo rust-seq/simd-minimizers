@@ -30,7 +30,7 @@ Full documentation can be found on [docs.rs](https://docs.rs/simd-minimizers).
 
 ```rust
 // Packed SIMD version.
-use packed_seq::{complement_char, PackedSeqVec, SeqVec};
+use packed_seq::{PackedSeqVec, SeqVec};
 let seq = b"ACGTGCTCAGAGACTCAG";
 let k = 5;
 let w = 7;

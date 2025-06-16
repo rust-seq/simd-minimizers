@@ -98,13 +98,8 @@ fn nthash_canonical_mul() {
 fn nthash_canonical_is_revcomp() {
     fn f<H: CharHasher>() {
         let seq = &*ASCII_SEQ;
-        let seq_rc = AsciiSeqVec::from_vec(
-            seq.seq
-                .iter()
-                .rev()
-                .map(|c| packed_seq::complement_char(*c))
-                .collect_vec(),
-        );
+        let seq_rc = seq.as_slice().to_revcomp();
+
         for k in [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
         ] {
@@ -261,15 +256,7 @@ fn canonical_minimizer_positions_and_values() {
             return;
         }
 
-        let ascii_seq_rc = AsciiSeqVec::from_vec(
-            ascii_seq
-                .0
-                .iter()
-                .rev()
-                .map(|c| packed_seq::complement_char(*c))
-                .collect_vec(),
-        );
-        let packed_seq_rc = PackedSeqVec::from_ascii(&ascii_seq_rc.seq);
+        let packed_seq_rc = packed_seq.to_revcomp();
         let packed_seq_rc = packed_seq_rc.as_slice();
 
         let mut fwd_positions = vec![];

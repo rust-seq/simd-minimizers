@@ -90,7 +90,7 @@
 //!
 //! ```
 //! // Packed SIMD version.
-//! use packed_seq::{complement_char, PackedSeqVec, SeqVec};
+//! use packed_seq::{PackedSeqVec, SeqVec, Seq};
 //! let seq = b"ACGTGCTCAGAGACTCAG";
 //! let k = 5;
 //! let w = 7;
@@ -113,8 +113,7 @@
 //! ]);
 //!
 //! // Check that reverse complement sequence has minimizers at 'reverse' positions.
-//! let rc_seq = seq.iter().rev().map(|&b| complement_char(b)).collect::<Vec<_>>();
-//! let rc_packed_seq = PackedSeqVec::from_ascii(&rc_seq);
+//! let rc_packed_seq = packed_seq.as_slice().to_revcomp();
 //! let mut rc_pos = Vec::new();
 //! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), k, w, &mut rc_pos);
 //! assert_eq!(rc_pos, vec![1, 8, 10]);

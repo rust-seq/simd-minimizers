@@ -485,7 +485,8 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "packed-seq"
 version = "3.0.0"
-source = "git+https://github.com/rust-seq/packed-seq#a521c3d3e48a2cf80b17168ff112ef02262095cc"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1828708f1041e1451dbc2bbbc3776004e7d2e62e9053136fa7a5e5f885d1cf4b"
 dependencies = [
  "cfg-if",
  "mem_dbg",
@@ -556,9 +557,9 @@ dependencies = [
 
 [[package]]
 name = "r-efi"
-version = "5.2.0"
+version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
+checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rand"

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Git
+- Fix #10: Add `extract_{canonical}_minimizer_values` to convert positions into `u64` kmer values.
 - Update to `packed-seq` `3.0`.
 - Fix to properly initialize arrays when collecting super-k-mers.
 - Update `packed-seq` to support non-byte offsets.

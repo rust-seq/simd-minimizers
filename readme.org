@@ -38,6 +38,9 @@ let packed_seq = PackedSeqVec::from_ascii(seq);
 let mut minimizer_positions = Vec::new();
 simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut minimizer_positions);
 assert_eq!(minimizer_positions, vec![3, 5, 12]);
+
+let mut minimizer_values = Vec::new();
+simd_minimizers::extract_canonical_minimizer_values(packed_seq.as_slice(), k, &minimizer_positions, &mut minimizer_values);
 #+end_src
 
 ** Benchmarks

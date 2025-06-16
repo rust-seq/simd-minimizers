@@ -252,6 +252,56 @@ fn canonical_minimizer_positions() {
 }
 
 #[test]
+fn canonical_minimizer_positions_and_values() {
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        if k > 32 {
+            return;
+        }
+        if (k + w - 1) % 2 == 0 {
+            return;
+        }
+
+        let ascii_seq_rc = AsciiSeqVec::from_vec(
+            ascii_seq
+                .0
+                .iter()
+                .rev()
+                .map(|c| packed_seq::complement_char(*c))
+                .collect_vec(),
+        );
+        let packed_seq_rc = PackedSeqVec::from_ascii(&ascii_seq_rc.seq);
+        let packed_seq_rc = packed_seq_rc.as_slice();
+
+        let mut fwd_positions = vec![];
+        super::canonical_minimizer_positions(packed_seq, k, w, &mut fwd_positions);
+        let mut rc_positions = vec![];
+        super::canonical_minimizer_positions(packed_seq_rc, k, w, &mut rc_positions);
+
+        // Check that positions are symmetric.
+        let len = ascii_seq.len();
+        for (&x, &y) in fwd_positions.iter().zip(rc_positions.iter().rev()) {
+            assert_eq!((x + y) as usize, len - k, "k={k}, w={w}, fwd={x}, rc={y}");
+        }
+
+        // Extract canonical minimizer values.
+        let mut fwd_values = vec![];
+        super::extract_canonical_minimizer_values(packed_seq, k, &fwd_positions, &mut fwd_values);
+
+        let mut rc_values = vec![];
+        super::extract_canonical_minimizer_values(packed_seq_rc, k, &rc_positions, &mut rc_values);
+
+        // Check that values are the same.
+        rc_values.reverse();
+        assert_eq!(
+            fwd_values,
+            rc_values,
+            "k={k}, w={w}, len={}",
+            ascii_seq.len()
+        );
+    });
+}
+
+#[test]
 fn minimizer_and_superkmer_positions() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let scalar_ascii = &mut vec![];

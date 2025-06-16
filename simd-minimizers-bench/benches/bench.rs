@@ -275,7 +275,7 @@ fn local_nthash(c: &mut Criterion) {
 
     type H = NtHasher;
 
-    let packed_text = PackedSeq { seq: packed_text, offset: 0, len: packed_text.len() * 4 };
+    let packed_text = packed_text.as_slice();
     g.bench_with_input("nthash_simd_it_sum", &packed_text, |b, packed_text| {
         b.iter(|| {
             nthash_seq_simd::<false, PackedSeq, H>(*packed_text, k, 1)
@@ -302,7 +302,7 @@ fn local_nthash(c: &mut Criterion) {
 fn simd_minimizer(c: &mut Criterion) {
     // // Create a random string of length 1Mbp.
     let owned_packed_seq = PackedSeqVec::random(1000000);
-    let raw_packed_seq = &owned_packed_seq.seq;
+    let raw_packed_seq = owned_packed_seq.seq();
     // let packed_seq = owned_packed_seq.as_slice();
 
     let w = 11;

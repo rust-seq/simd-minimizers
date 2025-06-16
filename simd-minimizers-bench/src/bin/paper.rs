@@ -112,6 +112,7 @@ fn bench_short(w: usize, k: usize) {
     }
 }
 
+#[allow(unused)]
 fn plot() {
     let n = 10_000_000;
     // let n = 100_000_000;
@@ -327,25 +328,25 @@ fn bench_minimizers(w: usize, k: usize) {
             let mut packed_seq = PackedSeqVec::from_ascii(&seq);
             time("pack simd-minimizers", params, || {
                 v2.clear();
-                packed_seq.len = 0;
+                packed_seq.clear();
                 packed_seq.push_ascii(&seq);
                 minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
             time("pack canonical simd-minimizers", params, || {
                 v2.clear();
-                packed_seq.len = 0;
+                packed_seq.clear();
                 packed_seq.push_ascii(&seq);
                 canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
             time("pack mul simd-minimizers", params, || {
                 v2.clear();
-                packed_seq.len = 0;
+                packed_seq.clear();
                 packed_seq.push_ascii(&seq);
                 mul_hash::minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });
             time("pack mul canonical simd-minimizers", params, || {
                 v2.clear();
-                packed_seq.len = 0;
+                packed_seq.clear();
                 packed_seq.push_ascii(&seq);
                 mul_hash::canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
             });

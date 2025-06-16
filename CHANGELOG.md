@@ -1,6 +1,8 @@
 # Changelog
 
 ## Git
+- Update to `packed-seq` `3.0`.
+- Fix to properly initialize arrays when collecting super-k-mers.
 - Update `packed-seq` to support non-byte offsets.
 
 ## 1.1

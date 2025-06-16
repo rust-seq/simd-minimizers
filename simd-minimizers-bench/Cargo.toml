@@ -7,14 +7,14 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-criterion = "0.5.1"
+criterion = "0.6.0"
 fxhash = "0.2"
 itertools = "0.14"
 minimizer-iter = "1.2.1"
 needletail = "0.6.1"
 nthash = "0.5.1"
 rand = "0.9"
-wyhash = "0.5"
+wyhash = "0.6"
 
 simd-minimizers = { path = "../simd-minimizers" }
 packed-seq.workspace = true

@@ -14,9 +14,9 @@ use simd_minimizers::{
     },
 };
 use simd_minimizers_bench::*;
-use std::{cell::LazyCell, simd::Simd, time::Duration};
+use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 criterion_group!(
     name = group;

@@ -271,11 +271,11 @@ fn canonical_minimizer_positions_and_values() {
         }
 
         // Extract canonical minimizer values.
-        let mut fwd_values = vec![];
-        super::extract_canonical_minimizer_values(packed_seq, k, &fwd_positions, &mut fwd_values);
+        let fwd_values: Vec<_> =
+            super::iter_canonical_minimizer_values(packed_seq, k, &fwd_positions).collect();
 
-        let mut rc_values = vec![];
-        super::extract_canonical_minimizer_values(packed_seq_rc, k, &rc_positions, &mut rc_values);
+        let mut rc_values: Vec<_> =
+            super::iter_canonical_minimizer_values(packed_seq_rc, k, &rc_positions).collect();
 
         // Check that values are the same.
         rc_values.reverse();

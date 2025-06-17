@@ -101,8 +101,7 @@
 //! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut fwd_pos);
 //! assert_eq!(fwd_pos, vec![3, 5, 12]);
 //!
-//! let mut fwd_vals = Vec::new();
-//! simd_minimizers::extract_canonical_minimizer_values(packed_seq.as_slice(), k, &fwd_pos, &mut fwd_vals);
+//! let fwd_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &fwd_pos).collect();
 //! assert_eq!(fwd_vals, vec![
 //!     // A C G A G, GAGCA is rc of TGCTC at pos 3
 //!     0b0001110011,
@@ -120,8 +119,7 @@
 //! for (fwd, &rc) in std::iter::zip(fwd_pos, rc_pos.iter().rev()) {
 //!     assert_eq!(fwd as usize, seq.len() - k - rc as usize);
 //! }
-//! let mut rc_vals = Vec::new();
-//! simd_minimizers::extract_canonical_minimizer_values(rc_packed_seq.as_slice(), k, &rc_pos, &mut rc_vals);
+//! let mut rc_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(rc_packed_seq.as_slice(), k, &rc_pos).collect();
 //! rc_vals.reverse();
 //! assert_eq!(rc_vals, fwd_vals);
 //! ```
@@ -174,8 +172,6 @@ pub mod private {
     pub use packed_seq::u32x8 as S;
 }
 
-use std::cmp::min;
-
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
 
@@ -185,7 +181,7 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-use nthash::{MulHasher, NtHasher};
+use nthash::{Captures, MulHasher, NtHasher};
 use packed_seq::u32x8 as S;
 use packed_seq::Seq;
 
@@ -279,33 +275,33 @@ pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     }
 }
 
-/// Given a sequence and a list of positions, extract the k-mer values at those positions.
-pub fn extract_minimizer_values<'s, S: Seq<'s>>(
+/// Given a sequence and a list of positions, iterate over the k-mer values at those positions.
+#[inline(always)]
+pub fn iter_minimizer_values<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
-    positions: &[u32],
-    out_vec: &mut Vec<u64>,
-) {
-    out_vec.clear();
-    out_vec.extend(positions.iter().map(|&pos| seq.read_kmer(k, pos as usize)));
+    positions: &'s [u32],
+) -> impl ExactSizeIterator<Item = u64> + Captures<&'s ()> + Clone {
+    positions
+        .iter()
+        .map(move |&pos| seq.read_kmer(k, pos as usize))
 }
 
-/// Given a sequence and a list of positions, extract the *canonical* k-mer values at those positions.
+/// Given a sequence and a list of positions, iterate over the *canonical* k-mer values at those positions.
 ///
 /// Canonical k-mers are defined as the *minimum* of the k-mer and its reverse complement.
 /// Note that this also works for even `k`, but typically one would want `k` to be odd.
-pub fn extract_canonical_minimizer_values<'s, S: Seq<'s>>(
+#[inline(always)]
+pub fn iter_canonical_minimizer_values<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
-    positions: &[u32],
-    out_vec: &mut Vec<u64>,
-) {
-    out_vec.clear();
-    out_vec.extend(positions.iter().map(|&pos| {
+    positions: &'s [u32],
+) -> impl ExactSizeIterator<Item = u64> + Captures<&'s ()> + Clone {
+    positions.iter().map(move |&pos| {
         let a = seq.read_kmer(k, pos as usize);
         let b = seq.read_revcomp_kmer(k, pos as usize);
-        min(a, b)
-    }));
+        core::cmp::min(a, b)
+    })
 }
 
 /// Variants that always use mulHash, instead of the default ntHash for DNA and mulHash for text.

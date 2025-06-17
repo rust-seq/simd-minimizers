@@ -24,12 +24,12 @@ impl<V: Clone> RingBuf<V> {
     fn new(w: usize, v: V) -> Self {
         assert!(w > 0);
         let data = vec![v; w];
-        RingBuf { w, idx: 0, data }
+        Self { w, idx: 0, data }
     }
 
     /// Returns the next index to be written.
     #[inline(always)]
-    fn idx(&self) -> usize {
+    const fn idx(&self) -> usize {
         self.idx
     }
 

@@ -110,7 +110,7 @@ const C: u32 = 0x517cc1b727220a95u64 as u32;
 
 impl CharHasher for MulHasher {
     fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self {
-        MulHasher {
+        Self {
             rot: (k as u32 - 1) % 32,
         }
     }

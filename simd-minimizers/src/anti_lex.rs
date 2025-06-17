@@ -9,7 +9,7 @@ use crate::S;
 use packed_seq::Seq;
 
 /// For k b-bit chars, the k*b-bit mask, and the mask for the most significant character.
-fn anti_and_mask(k: usize, b: usize) -> (u32, u32) {
+const fn anti_and_mask(k: usize, b: usize) -> (u32, u32) {
     let mask = if b * k < 32 {
         (1 << (b * k)) - 1
     } else {

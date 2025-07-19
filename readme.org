@@ -10,9 +10,9 @@ It also provides a /canonical/ version that ensures that a sequence and its reve
 
 The underlying algorithm is described in the following [[https://doi.org/10.1101/2025.01.27.634998][preprint]]:
 
-- SimdMinimizers: Computing random minimizers, fast.
-  Ragnar Groot Koerkamp, Igor Martayan
-  bioRxiv 2025.01.27 [[https://doi.org/10.1101/2025.01.27.634998][doi.org/10.1101/2025.01.27.634998]]
+- SimdMinimizers: Computing Random Minimizers, fast.\\
+  Ragnar Groot Koerkamp, Igor Martayan.
+  SEA 2025 [[https://doi.org/10.4230/LIPIcs.SEA.2025.20][doi.org/10.4230/LIPIcs.SEA.2025.20]]
 
 ** Requirements
 

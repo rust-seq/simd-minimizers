@@ -8,7 +8,7 @@ A SIMD-accelerated library to compute random minimizers.
 It can compute all the minimizers of a human genome in 4 seconds using a single thread.
 It also provides a /canonical/ version that ensures that a sequence and its reverse-complement always select the same positions, which takes 6 seconds on a human genome.
 
-The underlying algorithm is described in the following [[https://doi.org/10.1101/2025.01.27.634998][preprint]]:
+*Paper:*
 
 - SimdMinimizers: Computing Random Minimizers, fast.\\
   Ragnar Groot Koerkamp, Igor Martayan.

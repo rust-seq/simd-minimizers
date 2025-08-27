@@ -304,6 +304,36 @@ pub fn iter_canonical_minimizer_values<'s, S: Seq<'s>>(
     })
 }
 
+/// Given a sequence and a list of positions, iterate over the k-mer values at those positions.
+#[inline(always)]
+pub fn iter_minimizer_values_u128<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    positions: &'s [u32],
+) -> impl ExactSizeIterator<Item = u128> + Captures<&'s ()> + Clone {
+    positions
+        .iter()
+        .map(move |&pos| seq.read_kmer_u128(k, pos as usize))
+}
+
+/// Given a sequence and a list of positions, iterate over the *canonical* k-mer values at those positions.
+///
+/// Canonical k-mers are defined as the *minimum* of the k-mer and its reverse complement.
+/// Note that this also works for even `k`, but typically one would want `k` to be odd.
+#[inline(always)]
+pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    positions: &'s [u32],
+) -> impl ExactSizeIterator<Item = u128> + Captures<&'s ()> + Clone {
+    positions.iter().map(move |&pos| {
+        let a = seq.read_kmer_u128(k, pos as usize);
+        let b = seq.read_revcomp_kmer_u128(k, pos as usize);
+        core::cmp::min(a, b)
+    })
+}
+
+
 /// Variants that always use mulHash, instead of the default ntHash for DNA and mulHash for text.
 pub mod mul_hash {
     use super::*;

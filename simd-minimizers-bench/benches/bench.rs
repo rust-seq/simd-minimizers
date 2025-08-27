@@ -301,53 +301,53 @@ fn local_nthash(c: &mut Criterion) {
 
 fn simd_minimizer(c: &mut Criterion) {
     // // Create a random string of length 1Mbp.
-    let owned_packed_seq = PackedSeqVec::random(1000000);
-    let raw_packed_seq = owned_packed_seq.seq();
+    // let owned_packed_seq = PackedSeqVec::random(1000000);
+    // let raw_packed_seq = owned_packed_seq.seq();
     // let packed_seq = owned_packed_seq.as_slice();
 
     let w = 11;
     let k = 21;
 
     let mut g = c.benchmark_group("g");
-    let mut hasher = NtHashSimd::<true>;
-    g.bench_function("split_simd_sum", |b| {
-        b.iter(|| {
-            SplitSimd
-                .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
-        });
-    });
+    // let mut hasher = NtHashSimd::<true>;
+    // g.bench_function("split_simd_sum", |b| {
+    //     b.iter(|| {
+    //         SplitSimd
+    //             .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
+    //             .map(|x| Simd::<u32, 8>::from(x))
+    //             .sum::<Simd<u32, 8>>()
+    //     });
+    // });
 
-    let hasher = NtHashSimd::<true>;
-    let mut hasher = BufferParCached::new(hasher);
-    g.bench_function("split_simd_buf_sum", |b| {
-        b.iter(|| {
-            SplitSimd
-                .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
-                .map(|x| Simd::<u32, 8>::from(x))
-                .sum::<Simd<u32, 8>>()
-        });
-    });
+    // let hasher = NtHashSimd::<true>;
+    // let mut hasher = BufferParCached::new(hasher);
+    // g.bench_function("split_simd_buf_sum", |b| {
+    //     b.iter(|| {
+    //         SplitSimd
+    //             .sliding_min(w, hasher.hash_kmers(k, raw_packed_seq))
+    //             .map(|x| Simd::<u32, 8>::from(x))
+    //             .sum::<Simd<u32, 8>>()
+    //     });
+    // });
 
-    let mut hasher = NtHashSimd::<true>;
-    g.bench_function("split_simd_collect", |b| {
-        let mut v = vec![];
-        b.iter(|| {
-            v.extend(SplitSimd.sliding_min(w, hasher.hash_kmers(k, raw_packed_seq)));
-            v.clear();
-        });
-    });
+    // let mut hasher = NtHashSimd::<true>;
+    // g.bench_function("split_simd_collect", |b| {
+    //     let mut v = vec![];
+    //     b.iter(|| {
+    //         v.extend(SplitSimd.sliding_min(w, hasher.hash_kmers(k, raw_packed_seq)));
+    //         v.clear();
+    //     });
+    // });
 
-    let hasher = NtHashSimd::<true>;
-    let mut hasher = BufferParCached::new(hasher);
-    g.bench_function("split_simd_buf_collect", |b| {
-        let mut v = vec![];
-        b.iter(|| {
-            v.extend(SplitSimd.sliding_min(w, hasher.hash_kmers(k, raw_packed_seq)));
-            v.clear();
-        });
-    });
+    // let hasher = NtHashSimd::<true>;
+    // let mut hasher = BufferParCached::new(hasher);
+    // g.bench_function("split_simd_buf_collect", |b| {
+    //     let mut v = vec![];
+    //     b.iter(|| {
+    //         v.extend(SplitSimd.sliding_min(w, hasher.hash_kmers(k, raw_packed_seq)));
+    //         v.clear();
+    //     });
+    // });
 
     let lens = [1000000, 100000000];
     for len in lens {

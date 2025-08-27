@@ -8,4 +8,4 @@ incremental = true
 debug = true
 
 [workspace.dependencies]
-packed-seq = "3.0"
+packed-seq = "3.2.1"

@@ -140,12 +140,12 @@ fn plot() {
             // warmup
             {
                 collect::collect_into(
-                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
                     v2,
                 );
                 v2.clear();
                 collect::collect_and_dedup_into(
-                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                    minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
                     v2,
                 );
                 v2.clear();
@@ -212,12 +212,12 @@ fn bench_minimizers(w: usize, k: usize) {
         v.clear();
 
         collect::collect_into(
-            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
             v2,
         );
         v2.clear();
         collect::collect_and_dedup_into(
-            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
             v2,
         );
         v2.clear();
@@ -257,16 +257,16 @@ fn bench_minimizers(w: usize, k: usize) {
                 .map(|(a, r)| a + r)
         });
         time_v(v, "nthash", params, || {
-            nthash::nthash_seq_simd::<false, PackedSeq, H>(packed_seq, k, w).0
+            nthash::nthash_seq_simd::<false, PackedSeq, H>(packed_seq, k, w, None).0
         });
         time_v(v, "sliding_min", params, || {
-            minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w).0
+            minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w, None).0
         });
 
         time("fwd-collect", params, || {
             v2.clear();
             collect::collect_into(
-                minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                minimizers::minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
                 v2,
             )
         });
@@ -279,18 +279,18 @@ fn bench_minimizers(w: usize, k: usize) {
             // Inline minimizers_seq_simd.
             let add_remove = packed_seq.par_iter_bp_delayed(k + w - 1, k - 1).0;
             // True instead of default false here.
-            let mut nthash = nthash_mapper::<true, PackedSeq, H>(k, w);
+            let mut nthash = nthash_mapper::<true, PackedSeq, H>(k, w, None);
             let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
             add_remove.map(move |(a, rk)| sliding_min(nthash((a, rk))))
         });
         time_v(v, "canonical-strand", params, || {
-            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w).0
+            minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None).0
         });
 
         time("canonical-collect", params, || {
             v2.clear();
             collect::collect_into(
-                minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w),
+                minimizers::canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w, None),
                 v2,
             )
         });

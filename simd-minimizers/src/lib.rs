@@ -336,7 +336,7 @@ pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
 /// Variants with a seedable hash.
 ///
 /// Can be used to create multiple independent minimizer schemes.
-pub mod seed {
+pub mod seeded {
     use super::*;
 
     /// Deduplicated positions of all minimizers in the sequence, using SIMD.

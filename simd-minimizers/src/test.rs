@@ -65,12 +65,25 @@ fn test_nthash<const RC: bool, H: CharHasher>() {
         let scalar_packed = nthash_seq_scalar::<RC, H>(packed_seq, k).collect::<Vec<_>>();
         let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq, H>(ascii_seq, k, 1, None));
         let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq, H>(packed_seq, k, 1, None));
+        let simd_ascii_seeded =
+            collect(nthash_seq_simd::<RC, AsciiSeq, H>(ascii_seq, k, 1, Some(1)));
+        let simd_packed_seeded = collect(nthash_seq_simd::<RC, PackedSeq, H>(
+            packed_seq,
+            k,
+            1,
+            Some(1),
+        ));
 
         let len = ascii_seq.len();
-        assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
-        assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
-        assert_eq!(simd_ascii, naive, "k={}, len={}", k, len);
-        assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
+        assert_eq!(scalar_ascii, naive, "k={k}, len={len}");
+        assert_eq!(scalar_packed, naive, "k={k}, len={len}");
+        assert_eq!(simd_ascii, naive, "k={k}, len={len}");
+        assert_eq!(simd_packed, naive, "k={k}, len={len}");
+        assert_eq!(simd_ascii_seeded, simd_packed_seeded, "k={k}, len={len}");
+        if ascii_seq.len() >= 100 {
+            assert_ne!(simd_ascii, simd_ascii_seeded, "k={k}, len={len}");
+            assert_ne!(simd_packed, simd_packed_seeded, "k={k}, len={len}");
+        }
     });
 }
 
@@ -143,14 +156,14 @@ fn test_anti_lex_hash() {
         let simd_ascii = collect(anti_lex_hash_seq_simd(ascii_seq, k, 1));
         let simd_packed = collect(anti_lex_hash_seq_simd(packed_seq, k, 1));
         let len = ascii_seq.len();
-        assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
-        assert_eq!(scalar_packed, naive, "k={}, len={}", k, len);
-        assert_eq!(simd_ascii, naive, "k={}, len={}", k, len);
-        assert_eq!(simd_packed, naive, "k={}, len={}", k, len);
+        assert_eq!(scalar_ascii, naive, "k={k}, len={len}");
+        assert_eq!(scalar_packed, naive, "k={k}, len={len}");
+        assert_eq!(simd_ascii, naive, "k={k}, len={len}");
+        assert_eq!(simd_packed, naive, "k={k}, len={len}");
 
         let scalar_slice = anti_lex_hash_seq_scalar(slice, k).collect::<Vec<_>>();
         let simd_slice = collect(anti_lex_hash_seq_simd(slice, k, 1));
-        assert_eq!(simd_slice, scalar_slice, "k={}, len={}", k, len);
+        assert_eq!(simd_slice, scalar_slice, "k={k}, len={len}");
     });
 }
 

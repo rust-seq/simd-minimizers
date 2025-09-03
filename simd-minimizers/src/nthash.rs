@@ -1,5 +1,6 @@
 //! NtHash the kmers in a sequence.
 use std::array::from_fn;
+use std::hash::{BuildHasher, BuildHasherDefault, DefaultHasher};
 
 use super::intrinsics;
 use crate::S;
@@ -19,11 +20,18 @@ const HASHES_F: [u32; 4] = [
     0x2955_49f5_4be2_4456u64 as u32,
 ];
 
+type SeedHasher = BuildHasherDefault<DefaultHasher>;
+
 pub trait CharHasher: Clone {
+    #[inline(always)]
     fn new_from_val<'s, SEQ: Seq<'s>>(k: usize, _: SEQ) -> Self {
         Self::new::<SEQ>(k)
     }
-    fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self;
+    #[inline(always)]
+    fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self {
+        Self::new_with_seed::<SEQ>(k, None)
+    }
+    fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self;
     fn f(&self, b: u8) -> u32;
     fn c(&self, b: u8) -> u32;
     fn f_rot(&self, b: u8) -> u32;
@@ -47,12 +55,16 @@ pub struct NtHasher {
 }
 
 impl CharHasher for NtHasher {
-    fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self {
+    fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self {
         assert_eq!(SEQ::BITS_PER_CHAR, 2);
 
         let rot = k as u32 - 1;
-        let f = HASHES_F;
-        let c = from_fn(|i| HASHES_F[complement_base(i as u8) as usize]);
+        let hasher = SeedHasher::new();
+        let f = match seed {
+            None => HASHES_F,
+            Some(seed) => from_fn(|i| hasher.hash_one(HASHES_F[i] ^ seed) as u32),
+        };
+        let c = from_fn(|i| f[complement_base(i as u8) as usize]);
         let f_rot = f.map(|h| h.rotate_left(rot));
         let c_rot = c.map(|h| h.rotate_left(rot));
         let idx = [0, 1, 2, 3, 0, 1, 2, 3];
@@ -73,28 +85,36 @@ impl CharHasher for NtHasher {
         }
     }
 
+    #[inline(always)]
     fn f(&self, b: u8) -> u32 {
         unsafe { *self.f.get_unchecked(b as usize) }
     }
+    #[inline(always)]
     fn c(&self, b: u8) -> u32 {
         unsafe { *self.c.get_unchecked(b as usize) }
     }
+    #[inline(always)]
     fn f_rot(&self, b: u8) -> u32 {
         unsafe { *self.f_rot.get_unchecked(b as usize) }
     }
+    #[inline(always)]
     fn c_rot(&self, b: u8) -> u32 {
         unsafe { *self.c_rot.get_unchecked(b as usize) }
     }
 
+    #[inline(always)]
     fn simd_f(&self, b: u32x8) -> u32x8 {
         intrinsics::table_lookup(self.simd_f, b)
     }
+    #[inline(always)]
     fn simd_c(&self, b: u32x8) -> u32x8 {
         intrinsics::table_lookup(self.simd_c, b)
     }
+    #[inline(always)]
     fn simd_f_rot(&self, b: u32x8) -> u32x8 {
         intrinsics::table_lookup(self.simd_f_rot, b)
     }
+    #[inline(always)]
     fn simd_c_rot(&self, b: u32x8) -> u32x8 {
         intrinsics::table_lookup(self.simd_c_rot, b)
     }
@@ -103,6 +123,7 @@ impl CharHasher for NtHasher {
 #[derive(Clone)]
 pub struct MulHasher {
     rot: u32,
+    mul: u32,
 }
 
 // Mixing constant.
@@ -112,36 +133,55 @@ impl CharHasher for MulHasher {
     fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self {
         Self {
             rot: (k as u32 - 1) % 32,
+            mul: C,
         }
     }
 
+    fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self {
+        Self {
+            rot: (k as u32 - 1) % 32,
+            mul: match seed {
+                None => C,
+                Some(seed) => C ^ ((SeedHasher::new().hash_one(seed) as u32) << 1), // don't change parity,
+            },
+        }
+    }
+
+    #[inline(always)]
     fn f(&self, b: u8) -> u32 {
-        (b as u32).wrapping_mul(C)
+        (b as u32).wrapping_mul(self.mul)
     }
+    #[inline(always)]
     fn c(&self, b: u8) -> u32 {
-        (complement_base(b) as u32).wrapping_mul(C)
+        (complement_base(b) as u32).wrapping_mul(self.mul)
     }
+    #[inline(always)]
     fn f_rot(&self, b: u8) -> u32 {
-        (b as u32).wrapping_mul(C).rotate_left(self.rot)
+        (b as u32).wrapping_mul(self.mul).rotate_left(self.rot)
     }
+    #[inline(always)]
     fn c_rot(&self, b: u8) -> u32 {
         (complement_base(b) as u32)
-            .wrapping_mul(C)
+            .wrapping_mul(self.mul)
             .rotate_left(self.rot)
     }
 
+    #[inline(always)]
     fn simd_f(&self, b: u32x8) -> u32x8 {
-        b * C.into()
+        b * self.mul.into()
     }
+    #[inline(always)]
     fn simd_c(&self, b: u32x8) -> u32x8 {
-        packed_seq::complement_base_simd(b) * C.into()
+        packed_seq::complement_base_simd(b) * self.mul.into()
     }
+    #[inline(always)]
     fn simd_f_rot(&self, b: u32x8) -> u32x8 {
-        let r = b * C.into();
+        let r = b * self.mul.into();
         (r << self.rot) | (r >> (32 - self.rot))
     }
+    #[inline(always)]
     fn simd_c_rot(&self, b: u32x8) -> u32x8 {
-        let r = packed_seq::complement_base_simd(b) * C.into();
+        let r = packed_seq::complement_base_simd(b) * self.mul.into();
         (r << self.rot) | (r >> (32 - self.rot))
     }
 }

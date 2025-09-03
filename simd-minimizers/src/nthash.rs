@@ -130,13 +130,6 @@ pub struct MulHasher {
 const C: u32 = 0x517cc1b727220a95u64 as u32;
 
 impl CharHasher for MulHasher {
-    fn new<'s, SEQ: Seq<'s>>(k: usize) -> Self {
-        Self {
-            rot: (k as u32 - 1) % 32,
-            mul: C,
-        }
-    }
-
     fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self {
         Self {
             rot: (k as u32 - 1) % 32,

@@ -63,8 +63,8 @@ fn test_nthash<const RC: bool, H: CharHasher>() {
             .collect::<Vec<_>>();
         let scalar_ascii = nthash_seq_scalar::<RC, H>(ascii_seq, k).collect::<Vec<_>>();
         let scalar_packed = nthash_seq_scalar::<RC, H>(packed_seq, k).collect::<Vec<_>>();
-        let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq, H>(ascii_seq, k, 1));
-        let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq, H>(packed_seq, k, 1));
+        let simd_ascii = collect(nthash_seq_simd::<RC, AsciiSeq, H>(ascii_seq, k, 1, None));
+        let simd_packed = collect(nthash_seq_simd::<RC, PackedSeq, H>(packed_seq, k, 1, None));
 
         let len = ascii_seq.len();
         assert_eq!(scalar_ascii, naive, "k={}, len={}", k, len);
@@ -167,8 +167,8 @@ fn minimizers_fwd() {
 
             let scalar_ascii = minimizers_seq_scalar::<H>(ascii_seq, k, w).collect::<Vec<_>>();
             let scalar_packed = minimizers_seq_scalar::<H>(packed_seq, k, w).collect::<Vec<_>>();
-            let simd_ascii = collect(minimizers_seq_simd::<_, H>(ascii_seq, k, w));
-            let simd_packed = collect(minimizers_seq_simd::<_, H>(packed_seq, k, w));
+            let simd_ascii = collect(minimizers_seq_simd::<_, H>(ascii_seq, k, w, None));
+            let simd_packed = collect(minimizers_seq_simd::<_, H>(packed_seq, k, w, None));
 
             let len = ascii_seq.len();
             assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
@@ -192,8 +192,10 @@ fn minimizers_canonical() {
                 canonical_minimizers_seq_scalar::<H>(ascii_seq, k, w).collect::<Vec<_>>();
             let scalar_packed =
                 canonical_minimizers_seq_scalar::<H>(packed_seq, k, w).collect::<Vec<_>>();
-            let simd_ascii = collect(canonical_minimizers_seq_simd::<_, H>(ascii_seq, k, w));
-            let simd_packed = collect(canonical_minimizers_seq_simd::<_, H>(packed_seq, k, w));
+            let simd_ascii = collect(canonical_minimizers_seq_simd::<_, H>(ascii_seq, k, w, None));
+            let simd_packed = collect(canonical_minimizers_seq_simd::<_, H>(
+                packed_seq, k, w, None,
+            ));
 
             let len = ascii_seq.len();
             assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");

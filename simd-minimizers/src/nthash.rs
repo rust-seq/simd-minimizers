@@ -248,13 +248,14 @@ pub fn nthash_seq_simd<'s, const RC: bool, SEQ: Seq<'s>, H: CharHasher>(
     seq: impl Seq<'s>,
     k: usize,
     w: usize,
+    seed: Option<u32>,
 ) -> (
     impl ExactSizeIterator<Item = S> + Captures<&'s ()> + Clone,
     usize,
 ) {
     let (add_remove, padding) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut it = add_remove.map(nthash_mapper::<RC, SEQ, H>(k, w));
+    let mut it = add_remove.map(nthash_mapper::<RC, SEQ, H>(k, w, seed));
     it.by_ref().take(k - 1).for_each(drop);
 
     (it, padding)
@@ -268,8 +269,9 @@ pub fn nthash_seq_simd<'s, const RC: bool, SEQ: Seq<'s>, H: CharHasher>(
 pub fn nthash_mapper<'s, const RC: bool, SEQ: Seq<'s>, H: CharHasher>(
     k: usize,
     w: usize,
+    seed: Option<u32>,
 ) -> impl FnMut((S, S)) -> S + Clone {
-    let hasher = H::new::<SEQ>(k);
+    let hasher = H::new_with_seed::<SEQ>(k, seed);
 
     assert!(k > 0);
     assert!(w > 0);

@@ -45,6 +45,7 @@ pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
     seq: SEQ,
     k: usize,
     w: usize,
+    seed: Option<u32>,
 ) -> (
     impl ExactSizeIterator<Item = u32x8> + Captures<&'s ()>,
     usize,
@@ -53,7 +54,7 @@ pub fn minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
 
     let (add_remove, padding) = seq.par_iter_bp_delayed(k + w - 1, k - 1);
 
-    let mut nthash = nthash_mapper::<false, SEQ, H>(k, w);
+    let mut nthash = nthash_mapper::<false, SEQ, H>(k, w, seed);
     let mut sliding_min = sliding_min_mapper::<true>(w, k, add_remove.len());
 
     let mut head = add_remove.map(move |(a, rk)| {
@@ -98,6 +99,7 @@ pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
     seq: SEQ,
     k: usize,
     w: usize,
+    seed: Option<u32>,
 ) -> (
     impl ExactSizeIterator<Item = u32x8> + Captures<&'s ()>,
     usize,
@@ -108,7 +110,7 @@ pub fn canonical_minimizers_seq_simd<'s, SEQ: Seq<'s>, H: CharHasher>(
     // while canonical first drops the character, so has l without -1.
     let (add_remove, padding) = seq.par_iter_bp_delayed_2(k + w - 1, k - 1, l);
 
-    let mut nthash = nthash_mapper::<true, SEQ, H>(k, w);
+    let mut nthash = nthash_mapper::<true, SEQ, H>(k, w, seed);
     let mut canonical = canonical_mapper(k, w);
     let mut sliding_min = sliding_lr_min_mapper(w, k, add_remove.len());
 

@@ -207,10 +207,10 @@ pub fn one_canonical_minimizer<'s, S: Seq<'s>>(seq: S, k: usize) -> usize {
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: &mut Vec<u32>) {
     if S::BITS_PER_CHAR == 2 {
-        let head_padding = minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        let head_padding = minimizers_seq_simd::<_, NtHasher>(seq, k, w, None);
         collect_and_dedup_into(head_padding, out_vec);
     } else {
-        let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_into(head_padding, out_vec);
     }
 }
@@ -227,10 +227,10 @@ pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
     out_vec: &mut Vec<u32>,
 ) {
     if S::BITS_PER_CHAR == 2 {
-        let head_padding = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        let head_padding = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w, None);
         collect_and_dedup_into(head_padding, out_vec);
     } else {
-        let head_padding = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_padding = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_into(head_padding, out_vec);
     }
 }
@@ -246,10 +246,10 @@ pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     sk_pos_vec: &mut Vec<u32>,
 ) {
     if S::BITS_PER_CHAR == 2 {
-        let head_tail = minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        let head_tail = minimizers_seq_simd::<_, NtHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     } else {
-        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     }
 }
@@ -267,10 +267,10 @@ pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     sk_pos_vec: &mut Vec<u32>,
 ) {
     if S::BITS_PER_CHAR == 2 {
-        let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w);
+        let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     } else {
-        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     }
 }
@@ -333,6 +333,94 @@ pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
     })
 }
 
+/// Variants with a seedable hash.
+///
+/// Can be used to create multiple independent minimizer schemes.
+pub mod seed {
+    use super::*;
+
+    /// Deduplicated positions of all minimizers in the sequence, using SIMD.
+    ///
+    /// Positions are appended to a reusable `out_vec` to avoid allocations.
+    pub fn minimizer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        seed: u32,
+        out_vec: &mut Vec<u32>,
+    ) {
+        if S::BITS_PER_CHAR == 2 {
+            let head_padding = minimizers_seq_simd::<_, NtHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_into(head_padding, out_vec);
+        } else {
+            let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_into(head_padding, out_vec);
+        }
+    }
+
+    /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
+    ///
+    /// `l=w+k-1` must be odd to determine the strand of each window.
+    ///
+    /// Positions are appended to a reusable `out_vec` to avoid allocations.
+    pub fn canonical_minimizer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        seed: u32,
+        out_vec: &mut Vec<u32>,
+    ) {
+        if S::BITS_PER_CHAR == 2 {
+            let head_padding = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_into(head_padding, out_vec);
+        } else {
+            let head_padding = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_into(head_padding, out_vec);
+        }
+    }
+
+    /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+    ///
+    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+    pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        seed: u32,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        if S::BITS_PER_CHAR == 2 {
+            let head_tail = minimizers_seq_simd::<_, NtHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+        } else {
+            let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+        }
+    }
+
+    /// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
+    ///
+    /// `l=w+k-1` must be odd to determine the strand of each window.
+    ///
+    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
+    pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        seed: u32,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        if S::BITS_PER_CHAR == 2 {
+            let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+        } else {
+            let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, Some(seed));
+            collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
+        }
+    }
+}
 
 /// Variants that always use mulHash, instead of the default ntHash for DNA and mulHash for text.
 pub mod mul_hash {
@@ -342,7 +430,7 @@ pub mod mul_hash {
     ///
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn minimizer_positions<'s, S: Seq<'s>>(seq: S, k: usize, w: usize, out_vec: &mut Vec<u32>) {
-        let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_padding = minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_into(head_padding, out_vec);
     }
 
@@ -357,7 +445,7 @@ pub mod mul_hash {
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
-        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_into(head_tail, out_vec);
     }
 
@@ -371,7 +459,7 @@ pub mod mul_hash {
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,
     ) {
-        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_tail = minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     }
 
@@ -387,7 +475,7 @@ pub mod mul_hash {
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,
     ) {
-        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w);
+        let head_tail = canonical_minimizers_seq_simd::<_, MulHasher>(seq, k, w, None);
         collect_and_dedup_with_index_into(head_tail, min_pos_vec, sk_pos_vec);
     }
 }

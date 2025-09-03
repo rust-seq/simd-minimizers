@@ -123,6 +123,19 @@
 //! rc_vals.reverse();
 //! assert_eq!(rc_vals, fwd_vals);
 //! ```
+//!
+//! ```
+//! // Packed SIMD version with seeded hashes.
+//! use packed_seq::{PackedSeqVec, SeqVec, Seq};
+//! let seq = b"ACGTGCTCAGAGACTCAG";
+//! let k = 5;
+//! let w = 7;
+//! let seed = 101010;
+//!
+//! let packed_seq = PackedSeqVec::from_ascii(seq);
+//! let mut fwd_pos = Vec::new();
+//! simd_minimizers::seeded::canonical_minimizer_positions(packed_seq.as_slice(), k, w, seed, &mut fwd_pos);
+//! ```
 #![cfg_attr(
     not(any(
         doc,

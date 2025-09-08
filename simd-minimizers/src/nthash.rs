@@ -20,6 +20,8 @@ const HASHES_F: [u32; 4] = [
     0x2955_49f5_4be2_4456u64 as u32,
 ];
 
+const R: u32 = 25;
+
 type SeedHasher = BuildHasherDefault<DefaultHasher>;
 
 pub trait CharHasher: Clone {
@@ -58,7 +60,7 @@ impl CharHasher for NtHasher {
     fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self {
         assert_eq!(SEQ::BITS_PER_CHAR, 2);
 
-        let rot = k as u32 - 1;
+        let rot = (k as u32 - 1) * R;
         let hasher = SeedHasher::new();
         let f = match seed {
             None => HASHES_F,
@@ -132,7 +134,7 @@ const C: u32 = 0x517cc1b727220a95u64 as u32;
 impl CharHasher for MulHasher {
     fn new_with_seed<'s, SEQ: Seq<'s>>(k: usize, seed: Option<u32>) -> Self {
         Self {
-            rot: (k as u32 - 1) % 32,
+            rot: ((k as u32 - 1) * R) % 32,
             mul: match seed {
                 None => C,
                 Some(seed) => C ^ ((SeedHasher::new().hash_one(seed) as u32) << 1), // don't change parity,
@@ -190,12 +192,12 @@ pub fn nthash_kmer<'s, const RC: bool, H: CharHasher>(seq: impl Seq<'s>) -> u32 
     let mut hfw: u32 = 0;
     let mut hrc: u32 = 0;
     seq.iter_bp().for_each(|a| {
-        hfw = hfw.rotate_left(1) ^ hasher.f(a);
+        hfw = hfw.rotate_left(R) ^ hasher.f(a);
         if RC {
-            hrc = hrc.rotate_right(1) ^ hasher.c(a);
+            hrc = hrc.rotate_right(R) ^ hasher.c(a);
         }
     });
-    hfw.wrapping_add(hrc.rotate_left(k as u32 - 1))
+    hfw.wrapping_add(hrc.rotate_left((k as u32 - 1) * R))
 }
 
 /// Returns a scalar iterator over the 32-bit NT hashes of all k-mers in the sequence.
@@ -214,16 +216,16 @@ pub fn nthash_seq_scalar<'s, const RC: bool, H: CharHasher>(
     let mut add = seq.iter_bp();
     let remove = seq.iter_bp();
     add.by_ref().take(k - 1).for_each(|a| {
-        hfw = hfw.rotate_left(1) ^ hasher.f(a);
+        hfw = hfw.rotate_left(R) ^ hasher.f(a);
         if RC {
-            hrc = hrc.rotate_right(1) ^ hasher.c_rot(a);
+            hrc = hrc.rotate_right(R) ^ hasher.c_rot(a);
         }
     });
     add.zip(remove).map(move |(a, r)| {
-        let hfw_out = hfw.rotate_left(1) ^ hasher.f(a);
+        let hfw_out = hfw.rotate_left(R) ^ hasher.f(a);
         hfw = hfw_out ^ hasher.f_rot(r);
         if RC {
-            let hrc_out = hrc.rotate_right(1) ^ hasher.c_rot(a);
+            let hrc_out = hrc.rotate_right(R) ^ hasher.c_rot(a);
             hrc = hrc_out ^ hasher.c(r);
             hfw_out.wrapping_add(hrc_out)
         } else {
@@ -273,18 +275,18 @@ pub fn nthash_mapper<'s, const RC: bool, SEQ: Seq<'s>, H: CharHasher>(
     let mut fw = 0u32;
     let mut rc = 0u32;
     for _ in 0..k - 1 {
-        fw = fw.rotate_left(1) ^ hasher.f(0);
-        rc = rc.rotate_right(1) ^ hasher.c_rot(0);
+        fw = fw.rotate_left(R) ^ hasher.f(0);
+        rc = rc.rotate_right(R) ^ hasher.c_rot(0);
     }
 
     let mut h_fw = S::splat(fw);
     let mut h_rc = S::splat(rc);
 
     move |(a, r)| {
-        let hfw_out = ((h_fw << 1) | (h_fw >> 31)) ^ hasher.simd_f(a);
+        let hfw_out = ((h_fw << R) | (h_fw >> (32 - R))) ^ hasher.simd_f(a);
         h_fw = hfw_out ^ hasher.simd_f_rot(r);
         if RC {
-            let hrc_out = ((h_rc >> 1) | (h_rc << 31)) ^ hasher.simd_c_rot(a);
+            let hrc_out = ((h_rc >> R) | (h_rc << (32 - R))) ^ hasher.simd_c_rot(a);
             h_rc = hrc_out ^ hasher.simd_c(r);
             // Wrapping SIMD add
             hfw_out + hrc_out

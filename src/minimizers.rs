@@ -1,14 +1,17 @@
 //! Find the (canonical) minimizers of a sequence.
 use std::iter::zip;
 
-use crate::canonical;
+use crate::{
+    canonical,
+    sliding_min::{sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar},
+};
 
 use super::{
-    canonical::canonical_mapper,
-    sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd, sliding_min_scalar},
+    canonical::canonical_mapper_simd,
+    sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
-use itertools::Itertools;
-use packed_seq::{ChunkIt, PaddedIt, Seq};
+use itertools::{izip, Itertools};
+use packed_seq::{ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::SeqHasher;
 use wide::u32x8;
 
@@ -33,8 +36,11 @@ pub fn minimizers_seq_scalar<'s>(
     hasher: &impl SeqHasher,
     w: usize,
 ) -> impl ExactSizeIterator<Item = u32> {
-    let it = hasher.hash_kmers_scalar(seq);
-    sliding_min_scalar::<true>(it, w)
+    let kmer_hashes = hasher.hash_kmers_scalar(seq);
+    let len = kmer_hashes.len();
+    kmer_hashes
+        .map(sliding_min_mapper_scalar::<true>(w, len))
+        .dropping(w - 1)
 }
 
 /// Split the windows of the sequence into 8 chunks of equal length ~len/8.
@@ -66,15 +72,41 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     // TODO: Change to compile-time check on `impl SeqHasher<RC=true>` once supported.
     assert!(hasher.is_canonical());
 
-    let kmer_hashes = hasher.hash_kmers_scalar(seq);
-    // FIXME: Instead of cloning the `kmer_hashes` iterator, use a `sliding_min_scalar_mapper` instead.
-    let left = sliding_min_scalar::<true>(kmer_hashes.clone(), w);
-    let right = sliding_min_scalar::<false>(kmer_hashes, w);
-    // indicators whether each window is canonical
     let k = hasher.k();
-    let canonical = canonical::canonical_windows_seq_scalar(seq, k + w - 1);
-    zip(canonical, zip(left, right)).map(|(canonical, (left, right))| {
-        // Select left or right based on canonical mask.
+    let delay1 = hasher.delay().0;
+    let mut hash_mapper = hasher.in_out_mapper_scalar(seq);
+    // TODO: Merge into a single mapper?
+    let mut sliding_min_mapper = sliding_lr_min_mapper_scalar(w, seq.len());
+    let (Delay(delay2), mut canonical_mapper) = canonical::canonical_mapper_scalar(k + w - 1);
+
+    assert!(delay1 <= k - 1);
+    assert!(k - 1 <= delay2);
+    assert!(delay2 == k + w - 2);
+
+    let mut a = seq.iter_bp();
+    let mut rh = seq.iter_bp();
+    let rc = seq.iter_bp();
+
+    for a in a.by_ref().take(delay1) {
+        hash_mapper((a, 0));
+        canonical_mapper((a, 0));
+    }
+
+    for (a, rh) in zip(a.by_ref(), rh.by_ref()).take((k - 1) - delay1) {
+        hash_mapper((a, rh));
+        canonical_mapper((a, 0));
+    }
+
+    for (a, rh) in zip(a.by_ref(), rh.by_ref()).take(delay2 - (k - 1)) {
+        let hash = hash_mapper((a, rh));
+        canonical_mapper((a, 0));
+        sliding_min_mapper(hash);
+    }
+
+    izip!(a, rh, rc).map(move |(a, rh, rc)| {
+        let hash = hash_mapper((a, rh));
+        let canonical = canonical_mapper((a, rc));
+        let (left, right) = sliding_min_mapper(hash);
         if canonical {
             left
         } else {
@@ -94,7 +126,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     let k = hasher.k();
     let l = k + w - 1;
     let mut hash_mapper = hasher.in_out_mapper_simd(seq);
-    let (c_delay, mut canonical_mapper) = canonical_mapper(l);
+    let (c_delay, mut canonical_mapper) = canonical_mapper_simd(l);
 
     let mut padded_it = seq.par_iter_bp_delayed_2(l, hasher.delay(), c_delay);
 

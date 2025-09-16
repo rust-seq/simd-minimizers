@@ -2,36 +2,31 @@
 use std::mem::transmute;
 
 use crate::S;
-use packed_seq::{Delay, Seq};
+use packed_seq::Delay;
 use wide::{i32x8, CmpGt};
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
 /// Window length l=k+w-1 must be odd for this to never tie.
-pub fn canonical_windows_seq_scalar<'s>(
-    seq: impl Seq<'s>,
-    l: usize,
-) -> impl ExactSizeIterator<Item = bool> {
+pub fn canonical_mapper_scalar<'s>(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool) {
     assert!(
         l % 2 == 1,
         "Window length l={l} must be odd to guarantee canonicality"
     );
 
-    let mut add = seq.iter_bp();
-    let remove = seq.iter_bp();
-
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
     let mut cnt = -(l as isize);
 
-    add.by_ref().take(l - 1).for_each(|a| {
-        cnt += a as isize & 2;
-    });
-    add.zip(remove).map(move |(a, r)| {
-        cnt += a as isize & 2;
-        let is_canonical = cnt > 0;
-        cnt -= r as isize & 2;
-        is_canonical
-    })
+    (
+        Delay(l - 1),
+        #[inline(always)]
+        move |(a, r)| {
+            cnt += (a & 2) as isize;
+            let out = cnt > 0;
+            cnt -= (r & 2) as isize;
+            out
+        },
+    )
 }
 
 /// An iterator over windows that returns for each whether it's canonical or not.
@@ -42,7 +37,7 @@ pub fn canonical_windows_seq_scalar<'s>(
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 /// NOTE: First l-1 values are bogus.
-pub fn canonical_mapper(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
+pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
     assert!(
         l % 2 == 1,
         "Window length l={l} must be odd to guarantee canonicality"

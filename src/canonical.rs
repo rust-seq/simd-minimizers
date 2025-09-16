@@ -49,12 +49,13 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
     let two = i32x8::splat(2);
 
     (
-        Delay(l),
+        Delay(l - 1),
         #[inline(always)]
         move |(a, r)| {
             cnt += unsafe { transmute::<_, i32x8>(a) } & two;
+            let out = cnt.cmp_gt(i32x8::splat(0));
             cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
-            cnt.cmp_gt(i32x8::splat(0))
+            out
         },
     )
 }

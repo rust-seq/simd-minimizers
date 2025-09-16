@@ -16,7 +16,7 @@ nthash = "0.5.1"
 rand = "0.9"
 wyhash = "0.6"
 
-simd-minimizers = { path = "../simd-minimizers" }
+simd-minimizers = { path = ".." }
 packed-seq.workspace = true
 wide = "0.7.32"
 serde = "1.0.217"

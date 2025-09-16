@@ -46,11 +46,11 @@ let minimizer_values: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(
 
 ## Benchmarks
 
-Benchmarks can be found in the `simd-minimizers-bench` directory in the GitHub repository.
+Benchmarks can be found in the `bench` directory in the GitHub repository.
 
-`simd-minimizers-bench/benches/bench.rs` contains benchmarks used in [this blogpost](https://curiouscoding.nl/posts/fast-minimizers/).
+`bench/benches/bench.rs` contains benchmarks used in [this blogpost](https://curiouscoding.nl/posts/fast-minimizers/).
 
-`simd-minimizers-bench/src/bin/paper.rs` contains benchmarks used in the paper.
+`bench/src/bin/paper.rs` contains benchmarks used in the paper.
 
 Note that the benchmarks require some nightly features, you can install the latest nightly version with
 
@@ -58,7 +58,7 @@ Note that the benchmarks require some nightly features, you can install the late
 rustup install nightly
 ```
 
-To replicate results from the paper, go into `simd-minimizers-bench` and run
+To replicate results from the paper, go into `bench` and run
 ```sh
 RUSTFLAGS="-C target-cpu=native" cargo +nightly run --release
 python eval.py

@@ -2,6 +2,7 @@
 
 ## Master
 - Move `simd-minimizers` crate from subdir into the repo root.
+- Rename `simd-minimizers-bench` to just `bench`.
 
 ## 1.4
 - Make `NtHash` and `MulHash` seedable.

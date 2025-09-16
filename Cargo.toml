@@ -1,5 +1,5 @@
 [workspace]
-members = ["simd-minimizers-bench"]
+members = ["bench"]
 
 [profile.release]
 lto = "thin"

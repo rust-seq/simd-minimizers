@@ -8,6 +8,8 @@
 //! All these methods take 32 bit input values, **but they only use the upper 16 bits!**
 //!
 //! Positions ar
+use itertools::Itertools;
+
 use crate::S;
 use core::array::from_fn;
 use std::hint::assert_unchecked;
@@ -94,7 +96,7 @@ pub fn sliding_min_scalar<const LEFT: bool>(
         }
     }
 
-    let mut it = it.map(
+    it.map(
         #[inline(always)]
         move |val| {
             // Make sure the position does not interfere with the hash value.
@@ -123,10 +125,7 @@ pub fn sliding_min_scalar<const LEFT: bool>(
             let suffix_min = unsafe { *ring_buf.get_unchecked(ring_buf.idx()) };
             (min::<LEFT>(prefix_min, suffix_min) & pos_mask) + pos_offset
         },
-    );
-    // This optimizes better than it.skip(w-1).
-    it.by_ref().take(w - 1).for_each(drop);
-    it
+    ).dropping(w - 1)
 }
 
 fn simd_min<const LEFT: bool>(a: S, b: S) -> S {

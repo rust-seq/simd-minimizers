@@ -2,23 +2,19 @@
 use std::mem::transmute;
 
 use crate::S;
-use packed_seq::{PackedSeq, Seq};
+use packed_seq::{Delay, Seq};
 use wide::{i32x8, CmpGt};
-
-use crate::nthash::Captures;
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
 /// Window length l=k+w-1 must be odd for this to never tie.
 pub fn canonical_windows_seq_scalar<'s>(
     seq: impl Seq<'s>,
-    k: usize,
-    w: usize,
-) -> impl ExactSizeIterator<Item = bool> + Captures<&'s ()> {
-    let l = k + w - 1;
+    l: usize,
+) -> impl ExactSizeIterator<Item = bool> {
     assert!(
         l % 2 == 1,
-        "Window length {l}={k}+{w}-1 must be odd to guarantee canonicality"
+        "Window length l={l} must be odd to guarantee canonicality"
     );
 
     let mut add = seq.iter_bp();
@@ -46,11 +42,10 @@ pub fn canonical_windows_seq_scalar<'s>(
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 /// NOTE: First l-1 values are bogus.
-pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> i32x8 {
-    let l = k + w - 1;
+pub fn canonical_mapper(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
     assert!(
         l % 2 == 1,
-        "Window length {l}={k}+{w}-1 must be odd to guarantee canonicality"
+        "Window length l={l} must be odd to guarantee canonicality"
     );
 
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
@@ -58,10 +53,13 @@ pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> i32x8 {
     let mut cnt = i32x8::splat(-(l as i32));
     let two = i32x8::splat(2);
 
-    #[inline(always)]
-    move |(a, r)| {
-        cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-        cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
-        cnt.cmp_gt(i32x8::splat(0))
-    }
+    (
+        Delay(l),
+        #[inline(always)]
+        move |(a, r)| {
+            cnt += unsafe { transmute::<_, i32x8>(a) } & two;
+            cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
+            cnt.cmp_gt(i32x8::splat(0))
+        },
+    )
 }

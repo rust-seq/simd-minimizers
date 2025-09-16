@@ -87,7 +87,7 @@ impl SplitSimd {
         let pos_mask = S::splat(0x0000_ffff);
         let mut pos = S::splat(0);
 
-        let mut it = it.map(
+        it.map(
             #[inline(always)]
             move |val| {
                 let elem = (S::from(val) & val_mask) | pos;
@@ -106,9 +106,6 @@ impl SplitSimd {
                 let suffix_min = unsafe { *ring_buf.get_unchecked(ring_buf.idx()) };
                 (prefix_min.simd_min(suffix_min) & pos_mask).into()
             },
-        );
-        // This optimizes better than it.skip(w-1).
-        it.by_ref().take(w - 1).for_each(drop);
-        it
+        )
     }
 }

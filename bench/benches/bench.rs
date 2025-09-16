@@ -3,15 +3,15 @@
 #![feature(portable_simd)]
 #![allow(dead_code)]
 use itertools::Itertools;
-use packed_seq::{PackedSeq, PackedSeqVec, SeqVec};
+use packed_seq::{PackedSeqVec, SeqVec};
+use seq_hash::SeqHasher;
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions,
     private::{
         collect::{collect_and_dedup_with_index_into, collect_into},
         minimizers::*,
-        nthash::{nthash_seq_simd, NtHasher},
         S,
-    },
+    }, seq_hash::NtHasher,
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};
@@ -273,27 +273,23 @@ fn local_nthash(c: &mut Criterion) {
         b.iter(|| drop(black_box(hasher.hash_kmers(k, packed_text))));
     });
 
-    type H = NtHasher;
+    let hasher = NtHasher::<false>::new(k);
 
     let packed_text = packed_text.as_slice();
     g.bench_with_input("nthash_simd_it_sum", &packed_text, |b, packed_text| {
         b.iter(|| {
-            nthash_seq_simd::<false, PackedSeq, H>(*packed_text, k, 1, None)
-                .0
-                .sum::<S>()
+            hasher.hash_kmers_simd(*packed_text, 1).it .sum::<S>()
         });
     });
     g.bench_with_input("nthash_simd_it_vec", &packed_text, |b, packed_text| {
         b.iter(|| {
-            nthash_seq_simd::<false, PackedSeq, H>(*packed_text, k, 1, None)
-                .0
+            hasher.hash_kmers_simd(*packed_text, 1).it
                 .collect_vec()
         });
     });
     g.bench_with_input("nthash_simd_it_sum_c", &packed_text, |b, packed_text| {
         b.iter(|| {
-            nthash_seq_simd::<true, PackedSeq, H>(*packed_text, k, 1, None)
-                .0
+            hasher.hash_kmers_simd(*packed_text, 1).it
                 .sum::<S>()
         });
     });
@@ -393,32 +389,36 @@ fn simd_minimizer(c: &mut Criterion) {
 
         g.bench_function(BenchmarkId::new("minimizer_par_it_vec", len), |b| {
             let mut vec = Vec::new();
+            let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                vec.extend(minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None).0);
+                vec.extend(minimizers_seq_simd(packed_seq, &hasher, w).it);
                 black_box(&mut vec).clear();
             });
         });
         g.bench_function(BenchmarkId::new("minimizer_par_it_sum", len), |b| {
+            let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
                 black_box(
-                    minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None)
-                        .0
+                    minimizers_seq_simd(packed_seq, &hasher, w)
+                        .it
                         .sum::<S>(),
                 )
             });
         });
         g.bench_function(BenchmarkId::new("minimizer_collect", len), |b| {
             let mut vec = Vec::new();
+            let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                let head_tail = minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None);
+                let head_tail = minimizers_seq_simd(packed_seq, &hasher, w);
                 collect_into(head_tail, &mut vec);
                 black_box(&mut vec).clear();
             });
         });
         g.bench_function(BenchmarkId::new("minimizer_collect_and_dedup", len), |b| {
             let mut vec = Vec::new();
+            let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                minimizer_positions(packed_seq, k, w, &mut vec);
+                minimizer_positions(packed_seq, &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             });
         });
@@ -428,8 +428,9 @@ fn simd_minimizer(c: &mut Criterion) {
             |b| {
                 let mut vec = Vec::new();
                 let mut vec2 = Vec::new();
+            let hasher = NtHasher::<false>::new(k);
                 b.iter(|| {
-                    let head_tail = minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None);
+                    let head_tail = minimizers_seq_simd(packed_seq, &hasher, w);
                     collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                     black_box(&mut vec2).clear();
@@ -439,15 +440,17 @@ fn simd_minimizer(c: &mut Criterion) {
 
         g.bench_function(BenchmarkId::new("minimizer_canonical", len), |b| {
             let mut vec = Vec::new();
+            let hasher = NtHasher::<true>::new(k);
             b.iter(|| {
-                vec.extend(canonical_minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None).0);
+                vec.extend(canonical_minimizers_seq_simd(packed_seq, &hasher, w).it);
                 black_box(&mut vec).clear();
             });
         });
         g.bench_function(BenchmarkId::new("minimizer_canonical_dedup", len), |b| {
             let mut vec = Vec::new();
+            let hasher = NtHasher::<true>::new(k);
             b.iter(|| {
-                canonical_minimizer_positions(packed_seq, k, w, &mut vec);
+                canonical_minimizer_positions(packed_seq, &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             });
         });
@@ -456,8 +459,9 @@ fn simd_minimizer(c: &mut Criterion) {
             |b| {
                 let mut vec = Vec::new();
                 let mut vec2 = Vec::new();
+            let hasher = NtHasher::<true>::new(k);
                 b.iter(|| {
-                    let head_tail = canonical_minimizers_seq_simd::<_, NtHasher>(packed_seq, k, w, None);
+                    let head_tail = canonical_minimizers_seq_simd(packed_seq, &hasher, w);
                     collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                 })
@@ -477,9 +481,11 @@ fn human_genome(c: &mut Criterion) {
             return Default::default();
         }
         let mut vec = Vec::new();
+            let hasher = NtHasher::<false>::new(k);
+
         b.iter(|| {
             for seq in &*seqs {
-                minimizer_positions(seq.as_slice(), k, w, &mut vec);
+                minimizer_positions(seq.as_slice(), &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             }
         });
@@ -489,9 +495,10 @@ fn human_genome(c: &mut Criterion) {
             return Default::default();
         }
         let mut vec = Vec::new();
+            let hasher = NtHasher::<true>::new(k);
         b.iter(|| {
             for seq in &*seqs {
-                canonical_minimizer_positions(seq.as_slice(), k, w, &mut vec);
+                canonical_minimizer_positions(seq.as_slice(), &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             }
         });

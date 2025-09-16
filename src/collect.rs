@@ -6,15 +6,15 @@ use std::{
 };
 
 use crate::S;
-use packed_seq::L;
+use packed_seq::{ChunkIt, PaddedIt, L};
 use wide::u32x8;
 
 use crate::intrinsics::transpose;
 
 /// Convenience wrapper around `collect_into`.
-pub fn collect((par_head, padding): (impl ExactSizeIterator<Item = S>, usize)) -> Vec<u32> {
+pub fn collect(it: PaddedIt<impl ChunkIt<u32x8>>) -> Vec<u32> {
     let mut v = vec![];
-    collect_into((par_head, padding), &mut v);
+    collect_into(it, &mut v);
     v
 }
 
@@ -22,16 +22,14 @@ pub fn collect((par_head, padding): (impl ExactSizeIterator<Item = S>, usize)) -
 /// Works by taking 8 elements from each stream, and transposing this SIMD-matrix before writing out the results.
 /// The `tail` is appended at the end.
 #[inline(always)]
-pub fn collect_into(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
-    out_vec: &mut Vec<u32>,
-) {
-    let len = par_head.len();
+pub fn collect_into(it: PaddedIt<impl ChunkIt<u32x8>>, out_vec: &mut Vec<u32>) {
+    let PaddedIt { it, padding } = it;
+    let len = it.len();
     out_vec.resize(len * 8, 0);
 
     let mut m = [unsafe { transmute([0; 8]) }; 8];
     let mut i = 0;
-    par_head.for_each(|x| {
+    it.for_each(|x| {
         m[i % 8] = x;
         if i % 8 == 7 {
             let t = transpose(m);
@@ -66,21 +64,17 @@ thread_local! {
 }
 
 /// Convenience wrapper around `collect_and_dedup_into`.
-pub fn collect_and_dedup<const SUPER: bool>(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
-) -> Vec<u32> {
+pub fn collect_and_dedup<const SUPER: bool>(it: PaddedIt<impl ChunkIt<u32x8>>) -> Vec<u32> {
     let mut v = vec![];
-    collect_and_dedup_into((par_head, padding), &mut v);
+    collect_and_dedup_into(it, &mut v);
     v
 }
 
 /// Convenience wrapper around `collect_and_dedup_with_index_into`.
-pub fn collect_and_dedup_with_index(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
-) -> (Vec<u32>, Vec<u32>) {
+pub fn collect_and_dedup_with_index(it: PaddedIt<impl ChunkIt<u32x8>>) -> (Vec<u32>, Vec<u32>) {
     let mut v = vec![];
     let mut v2 = vec![];
-    collect_and_dedup_with_index_into((par_head, padding), &mut v, &mut v2);
+    collect_and_dedup_with_index_into(it, &mut v, &mut v2);
     (v, v2)
 }
 
@@ -89,11 +83,8 @@ pub fn collect_and_dedup_with_index(
 ///
 /// The output is simply the deduplicated input values.
 #[inline(always)]
-pub fn collect_and_dedup_into(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
-    out_vec: &mut Vec<u32>,
-) {
-    collect_and_dedup_into_impl::<false>((par_head, padding), out_vec, &mut vec![]);
+pub fn collect_and_dedup_into(it: PaddedIt<impl ChunkIt<u32x8>>, out_vec: &mut Vec<u32>) {
+    collect_and_dedup_into_impl::<false>(it, out_vec, &mut vec![]);
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -102,11 +93,11 @@ pub fn collect_and_dedup_into(
 /// The deduplicated input values are written in `out_vec` and the index of the stream it first appeared, i.e., the start of its super-k-mer, is written in `idx_vec`.
 #[inline(always)]
 pub fn collect_and_dedup_with_index_into(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
+    it: PaddedIt<impl ChunkIt<u32x8>>,
     out_vec: &mut Vec<u32>,
     idx_vec: &mut Vec<u32>,
 ) {
-    collect_and_dedup_into_impl::<true>((par_head, padding), out_vec, idx_vec);
+    collect_and_dedup_into_impl::<true>(it, out_vec, idx_vec);
 }
 
 /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -116,10 +107,11 @@ pub fn collect_and_dedup_with_index_into(
 /// When `SUPER` is true, the index of the stream in which the input value first appeared, i.e., the start of its super-k-mer, is additionale written in `idx_vec`.
 #[inline(always)]
 fn collect_and_dedup_into_impl<const SUPER: bool>(
-    (par_head, padding): (impl ExactSizeIterator<Item = S>, usize),
+    it: PaddedIt<impl ChunkIt<u32x8>>,
     out_vec: &mut Vec<u32>,
     idx_vec: &mut Vec<u32>,
 ) {
+    let PaddedIt { it, padding } = it;
     CACHE.with(|v| {
         let mut v = v.borrow_mut();
         let (v, v2) = v.split_at_mut(8);
@@ -134,7 +126,7 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
         // Vec of last pushed elements in each lane.
         let mut old = [S::MAX; 8];
 
-        let len = par_head.len();
+        let len = it.len();
         let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
         let offsets: [u32; 8] = from_fn(|i| i as u32);
         let mut offsets: u32x8 = unsafe { transmute(offsets) };
@@ -157,7 +149,7 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
 
         let mut m = [u32x8::ZERO; 8];
         let mut i = 0;
-        par_head.for_each(|x| {
+        it.for_each(|x| {
             if i == padding_i {
                 mask.as_array_mut()[padding_idx] = u32::MAX;
             }

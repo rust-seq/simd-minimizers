@@ -485,10 +485,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "packed-seq"
 version = "3.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a308691a5bd3c1a4614c199859a9d0111002fa49df98a2bc3278d5e2da535f6"
 dependencies = [
  "cfg-if",
+ "itertools 0.14.0",
  "mem_dbg",
  "rand",
  "wide",
@@ -670,6 +669,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "seq-hash"
+version = "0.0.1"
+dependencies = [
+ "itertools 0.14.0",
+ "packed-seq",
+ "wide",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -714,6 +722,7 @@ dependencies = [
  "itertools 0.14.0",
  "packed-seq",
  "rand",
+ "seq-hash",
  "wide",
 ]
 
@@ -730,6 +739,7 @@ dependencies = [
  "packed-seq",
  "rand",
  "rayon",
+ "seq-hash",
  "serde",
  "serde_json",
  "simd-minimizers",

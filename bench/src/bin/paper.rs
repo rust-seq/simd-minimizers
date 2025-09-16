@@ -324,34 +324,6 @@ fn bench_minimizers(w: usize, k: usize) {
         let seq = packed_seq.iter_bp().map(|x| unpack_base(x)).collect_vec();
         let ascii_seq = AsciiSeq(&seq);
 
-        if false {
-            let mut packed_seq = PackedSeqVec::from_ascii(&seq);
-            time("pack simd-minimizers", params, || {
-                v2.clear();
-                packed_seq.clear();
-                packed_seq.push_ascii(&seq);
-                minimizer_positions(packed_seq.as_slice(), k, w, v2);
-            });
-            time("pack canonical simd-minimizers", params, || {
-                v2.clear();
-                packed_seq.clear();
-                packed_seq.push_ascii(&seq);
-                canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
-            });
-            time("pack mul simd-minimizers", params, || {
-                v2.clear();
-                packed_seq.clear();
-                packed_seq.push_ascii(&seq);
-                mul_hash::minimizer_positions(packed_seq.as_slice(), k, w, v2);
-            });
-            time("pack mul canonical simd-minimizers", params, || {
-                v2.clear();
-                packed_seq.clear();
-                packed_seq.push_ascii(&seq);
-                mul_hash::canonical_minimizer_positions(packed_seq.as_slice(), k, w, v2);
-            });
-        }
-
         time("ascii-dna simd-minimizers", params, || {
             v2.clear();
             minimizer_positions(ascii_seq, k, w, v2);
@@ -377,47 +349,6 @@ fn bench_minimizers(w: usize, k: usize) {
         time("ascii mul canonical simd-minimizers", params, || {
             v2.clear();
             mul_hash::canonical_minimizer_positions(&seq[..], k, w, v2);
-        });
-    }
-
-    //
-    if false {
-        eprintln!("\nENGLISH\n");
-        let seq = &std::fs::read("english.200MB").unwrap()[..n];
-
-        time("ascii mul simd-minimizers EN", params, || {
-            v2.clear();
-            mul_hash::minimizer_positions(seq, k, w, v2);
-        });
-        time("ascii mul canonical simd-minimizers EN", params, || {
-            v2.clear();
-            mul_hash::canonical_minimizer_positions(seq, k, w, v2);
-        });
-        eprintln!("#minis: {}", v2.len());
-
-        eprintln!("\nSOURCES\n");
-        let seq = &std::fs::read("sources.200MB").unwrap()[..n];
-
-        time("ascii mul simd-minimizers SRC", params, || {
-            v2.clear();
-            mul_hash::minimizer_positions(seq, k, w, v2);
-        });
-        time("ascii mul canonical simd-minimizers SRC", params, || {
-            v2.clear();
-            mul_hash::canonical_minimizer_positions(seq, k, w, v2);
-        });
-        eprintln!("#minis: {}", v2.len());
-    }
-
-    if false {
-        eprintln!("\nSCALAR\n");
-        time("positions scalar", params, || {
-            v2.clear();
-            simd_minimizers::scalar::minimizer_positions_scalar(packed_seq, k, w, v2);
-        });
-        time("canonical positions scalar", params, || {
-            v2.clear();
-            simd_minimizers::scalar::canonical_minimizer_positions_scalar(packed_seq, k, w, v2);
         });
     }
 

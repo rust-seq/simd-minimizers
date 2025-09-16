@@ -137,21 +137,6 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
     }
 }
 
-/// SIMD version. Takes a SIMD-iterator over 8 lanes of values and returns an iterator over 8 lanes of positions.
-/// Requires an `ExactSizeIterator` to determine the length of the input.
-#[inline(always)]
-pub fn sliding_min_simd<const LEFT: bool>(
-    it: impl ExactSizeIterator<Item = S>,
-    w: usize,
-    k: usize,
-) -> impl ExactSizeIterator<Item = S> {
-    let len = it.len();
-    let mut it = it.map(sliding_min_mapper::<LEFT>(w, k, len));
-    // This optimizes better than it.skip(w-1).
-    it.by_ref().take(w - 1).for_each(drop);
-    it
-}
-
 /// Mapper version, that returns a function that can be called with new inputs as needed.
 /// Output values are offset by `-(k-1)`, so that the k'th returned value (the first kmer) is at position 0.
 /// `len` is the number of values in each chunk. The SIMD lanes will be offset by `len-(k+w-2)`.
@@ -230,20 +215,6 @@ fn reset_positions_offsets(
     for x in &mut **ring_buf {
         *x -= delta;
     }
-}
-
-/// Like `sliding_min_simd`, but returns both the leftmost and the rightmost minimum.
-#[inline(always)]
-pub fn sliding_lr_min_simd(
-    it: impl ExactSizeIterator<Item = S>,
-    w: usize,
-    k: usize,
-) -> impl ExactSizeIterator<Item = (S, S)> {
-    let len = it.len();
-    let mut it = it.map(sliding_lr_min_mapper(w, k, len));
-    // This optimizes better than it.skip(w-1).
-    it.by_ref().take(w - 1).for_each(drop);
-    it
 }
 
 /// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.

@@ -45,23 +45,6 @@ pub fn canonical_windows_seq_scalar<'s>(
 /// Split the kmers of the sequence into 8 chunks of equal length ~len/8.
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
-pub fn canonical_windows_seq_simd<'s>(
-    seq: PackedSeq<'s>,
-    k: usize,
-    w: usize,
-) -> (
-    impl ExactSizeIterator<Item = i32x8> + Captures<&'s ()>,
-    usize,
-) {
-    let l = k + w - 1;
-    let (add_remove, padding) = seq.par_iter_bp_delayed(k + w - 1, l - 1);
-
-    let mut head = add_remove.map(canonical_mapper(k, w));
-    head.by_ref().take(l - 1).for_each(drop);
-
-    (head, padding)
-}
-
 /// NOTE: First l-1 values are bogus.
 pub fn canonical_mapper(k: usize, w: usize) -> impl FnMut((S, S)) -> i32x8 {
     let l = k + w - 1;

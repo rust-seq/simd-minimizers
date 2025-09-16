@@ -5,7 +5,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use seq_hash::{MulHasher, NtHasher, SeqHasher};
 use simd_minimizers::{
     canonical_minimizer_positions, minimizer_positions,
-    private::{sliding_min::sliding_min_mapper, *},
+    private::*,
     scalar::canonical_minimizer_positions_scalar,
     scalar::minimizer_positions_scalar,
 };

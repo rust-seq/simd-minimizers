@@ -258,7 +258,7 @@ pub fn iter_minimizer_values<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
     positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u64> + Captures<&'s ()> + Clone {
+) -> impl ExactSizeIterator<Item = u64> + Clone {
     positions
         .iter()
         .map(move |&pos| seq.read_kmer(k, pos as usize))
@@ -273,7 +273,7 @@ pub fn iter_canonical_minimizer_values<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
     positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u64> + Captures<&'s ()> + Clone {
+) -> impl ExactSizeIterator<Item = u64> + Clone {
     positions.iter().map(move |&pos| {
         let a = seq.read_kmer(k, pos as usize);
         let b = seq.read_revcomp_kmer(k, pos as usize);
@@ -287,7 +287,7 @@ pub fn iter_minimizer_values_u128<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
     positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u128> + Captures<&'s ()> + Clone {
+) -> impl ExactSizeIterator<Item = u128> + Clone {
     positions
         .iter()
         .map(move |&pos| seq.read_kmer_u128(k, pos as usize))
@@ -302,7 +302,7 @@ pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
     seq: S,
     k: usize,
     positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u128> + Captures<&'s ()> + Clone {
+) -> impl ExactSizeIterator<Item = u128> + Clone {
     positions.iter().map(move |&pos| {
         let a = seq.read_kmer_u128(k, pos as usize);
         let b = seq.read_revcomp_kmer_u128(k, pos as usize);

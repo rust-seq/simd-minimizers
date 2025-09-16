@@ -32,7 +32,7 @@ pub fn minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
-) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
+) -> impl ExactSizeIterator<Item = u32> {
     let it = hasher.hash_kmers_scalar(seq);
     sliding_min_scalar::<true>(it, w)
 }
@@ -78,7 +78,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
-) -> impl ExactSizeIterator<Item = u32> + Captures<&'s ()> {
+) -> impl ExactSizeIterator<Item = u32> {
     // TODO: Change to compile-time check on `impl SeqHasher<RC=true>` once supported.
     assert!(hasher.is_canonical());
 

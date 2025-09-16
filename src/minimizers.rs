@@ -7,7 +7,7 @@ use super::{
     canonical::canonical_mapper,
     sliding_min::{sliding_lr_min_mapper, sliding_min_mapper, sliding_min_scalar},
 };
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use packed_seq::{ChunkIt, PaddedIt, Seq};
 use seq_hash::SeqHasher;
 use wide::u32x8;
@@ -41,31 +41,15 @@ pub fn minimizers_seq_scalar<'s>(
 /// Then return the positions of the minimizers of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 // TODO: Take a hash function as argument.
-pub fn minimizers_seq_simd<'s, H: SeqHasher>(
+pub fn minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
-    hasher: &H,
+    hasher: &impl SeqHasher,
     w: usize,
 ) -> PaddedIt<impl ChunkIt<u32x8>> {
-    let k = hasher.k();
-    let kmer_hashes = {
-        if H::MAPPER_NEEDS_OUT {
-            let delay = (&hasher).delay();
-            assert!(delay.0 <= k - 1);
-            let padded_it = seq.par_iter_bp_delayed(w + k - 1, delay);
-            padded_it
-                .map((&hasher).in_out_mapper_simd(seq))
-                .map_it(Either::Left)
-        } else {
-            let padded_it = seq.par_iter_bp(w + k - 1);
-            padded_it
-                .map(|a| (a, u32x8::splat(0)))
-                .map((&hasher).in_out_mapper_simd(seq))
-                .map_it(Either::Right)
-        }
-    };
+    let kmer_hashes = hasher.hash_kmers_simd(seq, w);
     let len = kmer_hashes.it.len();
     kmer_hashes
-        .map(sliding_min_mapper::<true>(w, k, len))
+        .map(sliding_min_mapper::<true>(w, len))
         .dropping(w - 1)
 }
 
@@ -112,8 +96,22 @@ pub fn canonical_minimizers_seq_simd<'s>(
     let mut hash_mapper = hasher.in_out_mapper_simd(seq);
     let (c_delay, mut canonical_mapper) = canonical_mapper(l);
 
-    let padded_it = seq.par_iter_bp_delayed_2(l, hasher.delay(), c_delay);
-    let mut sliding_min_mapper = sliding_lr_min_mapper(w, k, padded_it.it.len());
+    let mut padded_it = seq.par_iter_bp_delayed_2(l, hasher.delay(), c_delay);
+
+    // Process first k-1 characters separately, to initialize hash values.
+    {
+        let hash_mapper = &mut hash_mapper;
+        let canonical_mapper = &mut canonical_mapper;
+        padded_it
+            .it
+            .by_ref()
+            .take(k - 1)
+            .for_each(move |(a, rh, rc)| {
+                hash_mapper((a, rh));
+                canonical_mapper((a, rc));
+            });
+    }
+    let mut sliding_min_mapper = sliding_lr_min_mapper(w, padded_it.it.len());
 
     padded_it
         .map(move |(a, rh, rc)| {
@@ -122,5 +120,5 @@ pub fn canonical_minimizers_seq_simd<'s>(
             let (lmin, rmin) = sliding_min_mapper(hash);
             unsafe { std::mem::transmute::<_, u32x8>(canonical) }.blend(lmin, rmin)
         })
-        .dropping(l - 1)
+        .dropping(w - 1)
 }

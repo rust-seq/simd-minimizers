@@ -140,7 +140,7 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
 /// Output values are offset by `-(k-1)`, so that the k'th returned value (the first kmer) is at position 0.
 /// `len` is the number of values in each chunk. The SIMD lanes will be offset by `len-(k+w-2)`.
 /// The first `k+w-2` returned values are bogus, since they correspond to incomplete windows.
-pub fn sliding_min_mapper<const LEFT: bool>(w: usize, k: usize, len: usize) -> impl FnMut(S) -> S {
+pub fn sliding_min_mapper<const LEFT: bool>(w: usize, len: usize) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
@@ -157,8 +157,7 @@ pub fn sliding_min_mapper<const LEFT: bool>(w: usize, k: usize, len: usize) -> i
     //
     // The k-mer starting at position 0 is done after processing the char at
     // position k-1, so we compensate for that as well.
-    let mut pos_offset: S =
-        from_fn(|l| (l * len.saturating_sub(k + w - 2)).wrapping_sub(k - 1) as u32).into();
+    let mut pos_offset: S = from_fn(|l| (l * len.saturating_sub(w - 1)) as u32).into();
 
     #[inline(always)]
     move |val| {
@@ -217,7 +216,7 @@ fn reset_positions_offsets(
 }
 
 /// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.
-pub fn sliding_lr_min_mapper(w: usize, k: usize, len: usize) -> impl FnMut(S) -> (S, S) {
+pub fn sliding_lr_min_mapper(w: usize, len: usize) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
@@ -229,8 +228,7 @@ pub fn sliding_lr_min_mapper(w: usize, k: usize, len: usize) -> impl FnMut(S) ->
     let pos_mask = S::splat(0x0000_ffff);
     let max_pos = S::splat((1 << 16) - 1);
     let mut pos = S::splat(0);
-    let mut pos_offset: S =
-        from_fn(|l| (l * len.saturating_sub(k + w - 2)).wrapping_sub(k - 1) as u32).into();
+    let mut pos_offset: S = from_fn(|l| (l * len.saturating_sub(w - 1)) as u32).into();
 
     #[inline(always)]
     move |val| {

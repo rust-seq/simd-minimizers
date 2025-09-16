@@ -7,12 +7,13 @@ A SIMD-accelerated library to compute random minimizers.
 
 It can compute all the minimizers of a human genome in 4 seconds using a single thread.
 It also provides a *canonical* version that ensures that a sequence and its reverse-complement always select the same positions, which takes 6 seconds on a human genome.
-
-The underlying algorithm is described in the following [preprint](https://doi.org/10.1101/2025.01.27.634998):
+ 
+The underlying algorithm is described in the following
+[**paper**](https://doi.org/10.4230/LIPIcs.SEA.2025.20): 
 
 -   SimdMinimizers: Computing random minimizers, fast.
     Ragnar Groot Koerkamp, Igor Martayan
-    bioRxiv 2025.01.27 [doi.org/10.1101/2025.01.27.634998](https://doi.org/10.1101/2025.01.27.634998)
+    SEA 2025 [doi.org/10.4230/LIPIcs.SEA.2025.20](https://doi.org/10.4230/LIPIcs.SEA.2025.20)
 
 
 ## Requirements
@@ -20,9 +21,9 @@ The underlying algorithm is described in the following [preprint](https://doi.or
 This library supports AVX2 and NEON instruction sets.
 Make sure to set `RUSTFLAGS="-C target-cpu=native"` when compiling to use the instruction sets available on your architecture.
 
-    RUSTFLAGS="-C target-cpu=native" cargo run --release
-
-
+``` sh
+RUSTFLAGS="-C target-cpu=native" cargo run --release
+```
 
 ## Usage example
 
@@ -39,4 +40,29 @@ let packed_seq = PackedSeqVec::from_ascii(seq);
 let mut minimizer_positions = Vec::new();
 simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut minimizer_positions);
 assert_eq!(minimizer_positions, vec![3, 5, 12]);
+
+let minimizer_values: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &minimizer_positions).collect();
 ```
+
+## Benchmarks
+
+Benchmarks can be found in the `simd-minimizers-bench` directory in the GitHub repository.
+
+`simd-minimizers-bench/benches/bench.rs` contains benchmarks used in [this blogpost](https://curiouscoding.nl/posts/fast-minimizers/).
+
+`simd-minimizers-bench/src/bin/paper.rs` contains benchmarks used in the paper.
+
+Note that the benchmarks require some nightly features, you can install the latest nightly version with
+
+```sh
+rustup install nightly
+```
+
+To replicate results from the paper, go into `simd-minimizers-bench` and run
+```sh
+RUSTFLAGS="-C target-cpu=native" cargo +nightly run --release
+python eval.py
+```
+
+The human genome we use is from the T2T consortium, and available by following
+the first link [here](https://github.com/marbl/CHM13?tab=readme-ov-file#t2t-chm13v20-t2t-chm13y).

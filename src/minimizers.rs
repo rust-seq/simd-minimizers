@@ -5,7 +5,7 @@ use crate::canonical;
 
 use super::{
     canonical::canonical_mapper,
-    sliding_min::{sliding_lr_min_mapper, sliding_min_mapper, sliding_min_scalar},
+    sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd, sliding_min_scalar},
 };
 use itertools::Itertools;
 use packed_seq::{ChunkIt, PaddedIt, Seq};
@@ -49,7 +49,7 @@ pub fn minimizers_seq_simd<'s>(
     let kmer_hashes = hasher.hash_kmers_simd(seq, w);
     let len = kmer_hashes.it.len();
     kmer_hashes
-        .map(sliding_min_mapper::<true>(w, len))
+        .map(sliding_min_mapper_simd::<true>(w, len))
         .dropping(w - 1)
 }
 
@@ -111,7 +111,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
                 canonical_mapper((a, rc));
             });
     }
-    let mut sliding_min_mapper = sliding_lr_min_mapper(w, padded_it.it.len());
+    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len());
 
     padded_it
         .map(move |(a, rh, rc)| {

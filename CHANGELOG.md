@@ -1,5 +1,11 @@
 # Changelog
 
+## Master
+- Move `simd-minimizers` crate from subdir into the repo root.
+
+## 1.4
+- Make `NtHash` and `MulHash` seedable.
+
 ## 1.3
 - Update to `packed-seq` `3.2.1` for `u128` kmer value support.
 - Add `iter_{canonical}_minimizer_values_u128` to iterate over `u128` kmer values.

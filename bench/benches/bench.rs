@@ -11,7 +11,7 @@ use simd_minimizers::{
         collect::{collect_and_dedup_with_index_into, collect_into},
         minimizers::*,
         S,
-    }, seq_hash::NtHasher,
+    }, seq_hash::NtHasher, Cache,
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};

@@ -487,7 +487,6 @@ name = "packed-seq"
 version = "3.2.1"
 dependencies = [
  "cfg-if",
- "itertools 0.14.0",
  "mem_dbg",
  "rand",
  "wide",
@@ -672,7 +671,6 @@ dependencies = [
 name = "seq-hash"
 version = "0.0.1"
 dependencies = [
- "itertools 0.14.0",
  "packed-seq",
  "wide",
 ]

@@ -188,11 +188,16 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-use packed_seq::u32x8 as S;
 use packed_seq::Seq;
+use packed_seq::u32x8 as S;
 use seq_hash::SeqHasher;
 
 pub use minimizers::one_minimizer;
+pub use sliding_min::Cache;
+
+thread_local! {
+    static CACHE: std::cell::RefCell<Cache> = std::cell::RefCell::new(Cache::default());
+}
 
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
 ///
@@ -203,8 +208,10 @@ pub fn minimizer_positions<'s>(
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
-    let padded_it = minimizers_seq_simd(seq, hasher, w);
-    collect_and_dedup_into(padded_it, out_vec);
+    CACHE.with_borrow_mut(|cache| {
+        let padded_it = minimizers_seq_simd(seq, hasher, w, cache);
+        collect_and_dedup_into(padded_it, out_vec);
+    })
 }
 
 /// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
@@ -218,8 +225,10 @@ pub fn canonical_minimizer_positions<'s>(
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
-    let padded_it = canonical_minimizers_seq_simd(seq, hasher, w);
-    collect_and_dedup_into(padded_it, out_vec);
+    CACHE.with_borrow_mut(|cache| {
+        let padded_it = canonical_minimizers_seq_simd(seq, hasher, w, cache);
+        collect_and_dedup_into(padded_it, out_vec);
+    })
 }
 
 /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
@@ -232,8 +241,10 @@ pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     min_pos_vec: &mut Vec<u32>,
     sk_pos_vec: &mut Vec<u32>,
 ) {
-    let padded_it = minimizers_seq_simd(seq, hasher, w);
-    collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+    CACHE.with_borrow_mut(|cache| {
+        let padded_it = minimizers_seq_simd(seq, hasher, w, cache);
+        collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+    })
 }
 
 /// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
@@ -248,8 +259,10 @@ pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     min_pos_vec: &mut Vec<u32>,
     sk_pos_vec: &mut Vec<u32>,
 ) {
-    let padded_it = canonical_minimizers_seq_simd(seq, hasher, w);
-    collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+    CACHE.with_borrow_mut(|cache| {
+        let padded_it = canonical_minimizers_seq_simd(seq, hasher, w, cache);
+        collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+    })
 }
 
 /// Given a sequence and a list of positions, iterate over the k-mer values at those positions.
@@ -328,7 +341,9 @@ pub mod scalar {
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
-        collect_and_dedup_into_scalar(minimizers_seq_scalar(seq, hasher, w), out_vec);
+        CACHE.with_borrow_mut(|cache| {
+            collect_and_dedup_into_scalar(minimizers_seq_scalar(seq, hasher, w, cache), out_vec);
+        })
     }
 
     /// Deduplicated positions of all canonical minimizers in the sequence.
@@ -343,7 +358,12 @@ pub mod scalar {
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
-        collect_and_dedup_into_scalar(canonical_minimizers_seq_scalar(seq, hasher, w), out_vec);
+        CACHE.with_borrow_mut(|cache| {
+            collect_and_dedup_into_scalar(
+                canonical_minimizers_seq_scalar(seq, hasher, w, cache),
+                out_vec,
+            );
+        })
     }
 
     /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers.
@@ -357,13 +377,15 @@ pub mod scalar {
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,
     ) {
-        let (sk_pos, min_pos): (Vec<_>, Vec<_>) = minimizers_seq_scalar(seq, hasher, w)
-            .enumerate()
-            .dedup_by(|x, y| x.1 == y.1)
-            .map(|(x, y)| (x as u32, y))
-            .unzip();
-        min_pos_vec.extend(min_pos);
-        sk_pos_vec.extend(sk_pos);
+        CACHE.with_borrow_mut(|cache| {
+            let (sk_pos, min_pos): (Vec<_>, Vec<_>) = minimizers_seq_scalar(seq, hasher, w, cache)
+                .enumerate()
+                .dedup_by(|x, y| x.1 == y.1)
+                .map(|(x, y)| (x as u32, y))
+                .unzip();
+            min_pos_vec.extend(min_pos);
+            sk_pos_vec.extend(sk_pos);
+        })
     }
 
     /// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers.
@@ -379,12 +401,15 @@ pub mod scalar {
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,
     ) {
-        let (sk_pos, min_pos): (Vec<_>, Vec<_>) = canonical_minimizers_seq_scalar(seq, hasher, w)
-            .enumerate()
-            .dedup_by(|x, y| x.1 == y.1)
-            .map(|(x, y)| (x as u32, y))
-            .unzip();
-        min_pos_vec.extend(min_pos);
-        sk_pos_vec.extend(sk_pos);
+        CACHE.with_borrow_mut(|cache| {
+            let (sk_pos, min_pos): (Vec<_>, Vec<_>) =
+                canonical_minimizers_seq_scalar(seq, hasher, w, cache)
+                    .enumerate()
+                    .dedup_by(|x, y| x.1 == y.1)
+                    .map(|(x, y)| (x as u32, y))
+                    .unzip();
+            min_pos_vec.extend(min_pos);
+            sk_pos_vec.extend(sk_pos);
+        })
     }
 }

@@ -3,14 +3,14 @@ use std::iter::zip;
 
 use crate::{
     canonical,
-    sliding_min::{sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar},
+    sliding_min::{Cache, sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar},
 };
 
 use super::{
     canonical::canonical_mapper_simd,
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::SeqHasher;
 use wide::u32x8;
@@ -36,11 +36,12 @@ pub fn minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
+    cache: &mut Cache,
 ) -> impl ExactSizeIterator<Item = u32> {
     let kmer_hashes = hasher.hash_kmers_scalar(seq);
     let len = kmer_hashes.len();
     kmer_hashes
-        .map(sliding_min_mapper_scalar::<true>(w, len))
+        .map(sliding_min_mapper_scalar::<true>(w, len, cache))
         .advance(w - 1)
 }
 
@@ -53,11 +54,12 @@ pub fn minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
+    cache: &mut Cache,
 ) -> PaddedIt<impl ChunkIt<u32x8>> {
     let kmer_hashes = hasher.hash_kmers_simd(seq, w);
     let len = kmer_hashes.it.len();
     kmer_hashes
-        .map(sliding_min_mapper_simd::<true>(w, len))
+        .map(sliding_min_mapper_simd::<true>(w, len, cache))
         .advance(w - 1)
 }
 
@@ -71,6 +73,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
+    cache: &mut Cache,
 ) -> impl ExactSizeIterator<Item = u32> {
     // TODO: Change to compile-time check on `impl SeqHasher<RC=true>` once supported.
     assert!(hasher.is_canonical());
@@ -79,7 +82,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     let delay1 = hasher.delay().0;
     let mut hash_mapper = hasher.in_out_mapper_scalar(seq);
     // TODO: Merge into a single mapper?
-    let mut sliding_min_mapper = sliding_lr_min_mapper_scalar(w, seq.len());
+    let mut sliding_min_mapper = sliding_lr_min_mapper_scalar(w, seq.len(), cache);
     let (Delay(delay2), mut canonical_mapper) = canonical::canonical_mapper_scalar(k + w - 1);
 
     assert!(delay1 <= k - 1);
@@ -125,6 +128,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
     w: usize,
+    cache: &mut Cache,
 ) -> PaddedIt<impl ChunkIt<u32x8>> {
     assert!(hasher.is_canonical());
 
@@ -142,20 +146,45 @@ pub fn canonical_minimizers_seq_simd<'s>(
         padded_it
             .it
             .by_ref()
-            .take(k - 1)
-            .for_each(move |(a, rh, rc)| {
-                hash_mapper((a, rh));
-                canonical_mapper((a, rc));
+            .take(hasher.delay().0)
+            .for_each(move |(a, _rh, _rc)| {
+                hash_mapper((a, 0.into()));
+                canonical_mapper((a, 0.into()));
             });
     }
-    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len());
+    {
+        let hash_mapper = &mut hash_mapper;
+        let canonical_mapper = &mut canonical_mapper;
+        padded_it
+            .it
+            .by_ref()
+            .take(k - 1 - hasher.delay().0)
+            .for_each(move |(a, rh, _rc)| {
+                hash_mapper((a, rh));
+                canonical_mapper((a, 0.into()));
+            });
+    }
+    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), cache);
+    {
+        let hash_mapper = &mut hash_mapper;
+        let canonical_mapper = &mut canonical_mapper;
+        let sliding_min_mapper = &mut sliding_min_mapper;
+        padded_it
+            .it
+            .by_ref()
+            .map(move |(a, rh, rc)| {
+                let hash = hash_mapper((a, rh));
+                canonical_mapper((a, rc));
+                sliding_min_mapper(hash);
+            })
+            .take(w - 1)
+            .for_each(drop);
+    }
 
-    padded_it
-        .map(move |(a, rh, rc)| {
-            let hash = hash_mapper((a, rh));
-            let canonical = canonical_mapper((a, rc));
-            let (lmin, rmin) = sliding_min_mapper(hash);
-            unsafe { std::mem::transmute::<_, u32x8>(canonical) }.blend(lmin, rmin)
-        })
-        .advance(w - 1)
+    padded_it.map(move |(a, rh, rc)| {
+        let hash = hash_mapper((a, rh));
+        let canonical = canonical_mapper((a, rc));
+        let (lmin, rmin) = sliding_min_mapper(hash);
+        unsafe { std::mem::transmute::<_, u32x8>(canonical) }.blend(lmin, rmin)
+    })
 }

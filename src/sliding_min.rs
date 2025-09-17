@@ -13,6 +13,7 @@ use core::array::from_fn;
 use std::hint::assert_unchecked;
 
 /// A custom RingBuf implementation that has a fixed size `w` and wraps around.
+#[derive(Default)]
 struct RingBuf<V> {
     w: usize,
     idx: usize,
@@ -20,12 +21,24 @@ struct RingBuf<V> {
 }
 
 impl<V: Clone> RingBuf<V> {
+    #[allow(unused)]
     #[inline(always)]
     fn new(w: usize, v: V) -> Self {
         assert!(w > 0);
         let data = vec![v; w];
         Self { w, idx: 0, data }
     }
+
+    #[inline(always)]
+    fn assign(&mut self, w: usize, v: V) -> &mut Self {
+        assert!(w > 0);
+        self.w = w;
+        self.idx = 0;
+        self.data.clear();
+        self.data.resize(w, v);
+        self
+    }
+
 
     /// Returns the next index to be written.
     #[inline(always)]
@@ -61,9 +74,17 @@ impl<V> std::ops::DerefMut for RingBuf<V> {
     }
 }
 
+#[derive(Default)]
+pub struct Cache {
+    scalar: RingBuf<u32>,
+    scalar_lr: RingBuf<(u32,u32)>,
+    simd: RingBuf<S>,
+    simd_lr: RingBuf<(S, S)>,
+}
+
 /// Scalar version. Takes an iterator over values and returns an iterator over positions.
 #[inline(always)]
-pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize) -> impl FnMut(u32) -> u32 {
+pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(u32) -> u32 {
     assert!(w > 0);
     assert!(
         w < (1 << 15),
@@ -74,7 +95,7 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize) -> impl
         "sliding_min returns 32bit indices. Try splitting the input into 4GB chunks first."
     );
     let mut prefix_min = u32::MAX;
-    let mut ring_buf = RingBuf::new(w, prefix_min);
+    let ring_buf = cache.scalar.assign(w, prefix_min);
     // We only compare the upper 16 bits of each hash.
     // Ties are broken automatically in favour of lower pos.
     let val_mask = 0xffff_0000;
@@ -99,7 +120,7 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize) -> impl
             pos -= delta;
             prefix_min -= delta;
             pos_offset += delta;
-            for x in &mut *ring_buf {
+            for x in &mut **ring_buf {
                 *x -= delta;
             }
         }
@@ -122,7 +143,7 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize) -> impl
 }
 
 #[inline(always)]
-pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize) -> impl FnMut(u32) -> (u32, u32) {
+pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(u32) -> (u32, u32) {
     assert!(w > 0);
     assert!(
         w < (1 << 15),
@@ -133,7 +154,7 @@ pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize) -> impl FnMut(u32) -> 
         "sliding_min returns 32bit indices. Try splitting the input into 4GB chunks first."
     );
     let mut prefix_lr_min = (u32::MAX, u32::MAX);
-    let mut ring_buf = RingBuf::new(w, prefix_lr_min);
+    let ring_buf = cache.scalar_lr.assign(w, prefix_lr_min);
     // We only compare the upper 16 bits of each hash.
     // Ties are broken automatically in favour of lower pos.
     let val_mask = 0xffff_0000;
@@ -158,7 +179,7 @@ pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize) -> impl FnMut(u32) -> 
             prefix_lr_min.0 -= delta;
             prefix_lr_min.1 -= delta;
             pos_offset += delta;
-            for x in &mut *ring_buf {
+            for x in &mut **ring_buf {
                 x.0 -= delta;
                 x.1 -= delta;
             }
@@ -199,12 +220,12 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
 /// Output values are offset by `-(k-1)`, so that the k'th returned value (the first kmer) is at position 0.
 /// `len` is the number of values in each chunk. The SIMD lanes will be offset by `len-(k+w-2)`.
 /// The first `k+w-2` returned values are bogus, since they correspond to incomplete windows.
-pub fn sliding_min_mapper_simd<const LEFT: bool>(w: usize, len: usize) -> impl FnMut(S) -> S {
+pub fn sliding_min_mapper_simd<const LEFT: bool>(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
     let mut prefix_min = S::splat(u32::MAX);
-    let mut ring_buf = RingBuf::new(w, prefix_min);
+    let ring_buf = cache.simd.assign(w, prefix_min);
     // We only compare the upper 16 bits of each hash.
     // Ties are broken automatically in favour of lower pos.
     let val_mask = S::splat(0xffff_0000);
@@ -223,7 +244,7 @@ pub fn sliding_min_mapper_simd<const LEFT: bool>(w: usize, len: usize) -> impl F
         // Make sure the position does not interfere with the hash value.
         if pos == max_pos {
             // Slow case extracted to a function to have better inlining here.
-            reset_positions_offsets(w, &mut pos, &mut prefix_min, &mut pos_offset, &mut ring_buf);
+            reset_positions_offsets(w, &mut pos, &mut prefix_min, &mut pos_offset, ring_buf);
         }
         // slightly faster than assigning S::splat(u32::MAX)
         let elem = (if LEFT { val } else { !val } & val_mask) | pos;
@@ -233,7 +254,7 @@ pub fn sliding_min_mapper_simd<const LEFT: bool>(w: usize, len: usize) -> impl F
         // After a chunk has been filled, compute suffix minima.
         if ring_buf.idx() == 0 {
             // Slow case extracted to a function to have better inlining here.
-            suffix_minima::<LEFT>(&mut ring_buf, w, &mut prefix_min, elem);
+            suffix_minima::<LEFT>(ring_buf, w, &mut prefix_min, elem);
         }
 
         let suffix_min = unsafe { *ring_buf.get_unchecked(ring_buf.idx()) };
@@ -275,12 +296,13 @@ fn reset_positions_offsets(
 }
 
 /// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.
-pub fn sliding_lr_min_mapper_simd(w: usize, len: usize) -> impl FnMut(S) -> (S, S) {
+pub fn sliding_lr_min_mapper_simd(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
     let mut prefix_lr_min = (S::splat(u32::MAX), S::splat(u32::MAX));
-    let mut ring_buf = RingBuf::new(w, prefix_lr_min);
+    let ring_buf = cache.simd_lr.assign(w, prefix_lr_min);
+    // let mut ring_buf = RingBuf::new(w, prefix_lr_min);
     // We only compare the upper 16 bits of each hash.
     // Ties are broken automatically in favour of lower pos.
     let val_mask = S::splat(0xffff_0000);
@@ -299,7 +321,7 @@ pub fn sliding_lr_min_mapper_simd(w: usize, len: usize) -> impl FnMut(S) -> (S, 
                 &mut pos,
                 &mut prefix_lr_min,
                 &mut pos_offset,
-                &mut ring_buf,
+                ring_buf,
             );
         }
         // slightly faster than assigning S::splat(u32::MAX)
@@ -312,7 +334,7 @@ pub fn sliding_lr_min_mapper_simd(w: usize, len: usize) -> impl FnMut(S) -> (S, 
         // After a chunk has been filled, compute suffix minima.
         if ring_buf.idx() == 0 {
             // Slow case extracted to a function to have better inlining here.
-            suffix_lr_minima(&mut ring_buf, w, &mut prefix_lr_min, elem);
+            suffix_lr_minima(ring_buf, w, &mut prefix_lr_min, elem);
         }
 
         let suffix_lr_min = unsafe { *ring_buf.get_unchecked(ring_buf.idx()) };

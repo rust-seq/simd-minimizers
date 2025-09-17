@@ -3,7 +3,7 @@ use crate::minimizers::*;
 use collect::collect;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
-use rand::{random_range, Rng};
+use rand::{Rng, random_range};
 use seq_hash::{AntiLexHasher, MulHasher, NtHasher};
 use std::sync::LazyLock;
 
@@ -22,7 +22,7 @@ static SLICE: LazyLock<Vec<u8>> =
 static PACKED_SEQ: LazyLock<PackedSeqVec> =
     LazyLock::new(|| PackedSeqVec::from_ascii(&ASCII_SEQ.seq));
 
-fn test_on_inputs(f: impl Fn(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
+fn test_on_inputs(mut f: impl FnMut(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     let slice = &*SLICE;
     let ascii_seq = &*ASCII_SEQ;
     let packed_seq = &*PACKED_SEQ;
@@ -153,6 +153,7 @@ fn canonical_is_revcomp() {
 #[test]
 fn minimizers_fwd() {
     fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
+        let mut cache = Cache::default();
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             let hasher = hasher(k);
             let naive = ascii_seq
@@ -162,10 +163,12 @@ fn minimizers_fwd() {
                 .map(|(pos, seq)| (pos + one_minimizer(AsciiSeq(seq), &hasher)) as u32)
                 .collect::<Vec<_>>();
 
-            let scalar_ascii = minimizers_seq_scalar(ascii_seq, &hasher, w).collect::<Vec<_>>();
-            let scalar_packed = minimizers_seq_scalar(packed_seq, &hasher, w).collect::<Vec<_>>();
-            let simd_ascii = collect(minimizers_seq_simd(ascii_seq, &hasher, w));
-            let simd_packed = collect(minimizers_seq_simd(packed_seq, &hasher, w));
+            let scalar_ascii =
+                minimizers_seq_scalar(ascii_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
+            let scalar_packed =
+                minimizers_seq_scalar(packed_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
+            let simd_ascii = collect(minimizers_seq_simd(ascii_seq, &hasher, w, &mut cache));
+            let simd_packed = collect(minimizers_seq_simd(packed_seq, &hasher, w, &mut cache));
 
             let len = ascii_seq.len();
             assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
@@ -188,11 +191,23 @@ fn minimizers_canonical() {
             }
             let hasher = hasher(k);
             let scalar_ascii =
-                canonical_minimizers_seq_scalar(ascii_seq, &hasher, w).collect::<Vec<_>>();
+                canonical_minimizers_seq_scalar(ascii_seq, &hasher, w, &mut Cache::default())
+                    .collect::<Vec<_>>();
             let scalar_packed =
-                canonical_minimizers_seq_scalar(packed_seq, &hasher, w).collect::<Vec<_>>();
-            let simd_ascii = collect(canonical_minimizers_seq_simd(ascii_seq, &hasher, w));
-            let simd_packed = collect(canonical_minimizers_seq_simd(packed_seq, &hasher, w));
+                canonical_minimizers_seq_scalar(packed_seq, &hasher, w, &mut Cache::default())
+                    .collect::<Vec<_>>();
+            let simd_ascii = collect(canonical_minimizers_seq_simd(
+                ascii_seq,
+                &hasher,
+                w,
+                &mut Default::default(),
+            ));
+            let simd_packed = collect(canonical_minimizers_seq_simd(
+                packed_seq,
+                &hasher,
+                w,
+                &mut Default::default(),
+            ));
 
             let len = ascii_seq.len();
 

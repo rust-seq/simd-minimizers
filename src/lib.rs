@@ -70,10 +70,6 @@
 //! All functions take a `out_vec: &mut Vec<u32>` parameter to which positions are _appended_.
 //! For best performance, re-use the same `out_vec` between invocations, and [`Vec::clear`] it before or after each call.
 //!
-//! ## Features
-//!
-//! - `hide-simd-warning`: If your system does not support AVX2 or NEON, enable this feature to disable the compile warning that will be shown.
-//!
 //! ## Examples
 //!
 //! ```
@@ -136,17 +132,6 @@
 //! let mut fwd_pos = Vec::new();
 //! simd_minimizers::seeded::canonical_minimizer_positions(packed_seq.as_slice(), k, w, seed, &mut fwd_pos);
 //! ```
-#![cfg_attr(
-    not(any(
-        doc,
-        target_feature = "avx2",
-        target_feature = "neon",
-        feature = "hide-simd-warning"
-    )),
-    deprecated(
-        note = "simd-minimizers uses AVX2 or NEON SIMD instructions. Compile using `-C target-cpu=native` to get the expected performance. Hide this warning using the `hide-simd-warning` feature."
-    )
-)]
 
 mod canonical;
 pub mod collect;

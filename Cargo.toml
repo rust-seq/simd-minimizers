@@ -26,6 +26,7 @@ authors = ["Ragnar Groot Koerkamp", "Igor Martayan"]
 description = "A SIMD-accelerated library to compute random minimizers"
 
 [dependencies]
+clap = { version = "4.5.47", features = ["derive"] }
 itertools = "0.14"
 packed-seq.workspace = true
 seq-hash.workspace = true

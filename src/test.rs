@@ -2,7 +2,7 @@ use super::*;
 use crate::minimizers::*;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
-use rand::{random_range, Rng};
+use rand::Rng;
 use seq_hash::{AntiLexHasher, MulHasher, NtHasher};
 use std::sync::LazyLock;
 
@@ -48,105 +48,6 @@ fn test_on_inputs(mut f: impl FnMut(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
             }
         }
     }
-}
-
-// FIXME: Move to seq_hash
-fn test_hash<H: SeqHasher>(hasher: impl Fn(usize) -> H, test_plaintext: bool) {
-    // FIXME: Test seeded hashers
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        if w > 1 {
-            return;
-        }
-
-        let hasher = hasher(k);
-
-        let naive = ascii_seq
-            .0
-            .windows(k)
-            .map(|seq| hasher.hash_kmer(AsciiSeq(seq)))
-            .collect::<Vec<_>>();
-        let scalar_ascii = hasher.hash_kmers_scalar(ascii_seq).collect::<Vec<_>>();
-        let scalar_packed = hasher.hash_kmers_scalar(packed_seq).collect::<Vec<_>>();
-        let simd_ascii = collect(hasher.hash_kmers_simd(ascii_seq, 1));
-        let simd_packed = collect(hasher.hash_kmers_simd(packed_seq, 1));
-
-        let len = ascii_seq.len();
-
-        assert_eq!(scalar_ascii, naive, "k={k}, len={len}");
-        assert_eq!(scalar_packed, naive, "k={k}, len={len}");
-        assert_eq!(simd_ascii, naive, "k={k}, len={len}");
-        assert_eq!(simd_packed, naive, "k={k}, len={len}");
-
-        // Hashes of plaintext chars will differ from hashing corresponding packed data.
-        if test_plaintext {
-            let scalar_slice = hasher.hash_kmers_scalar(ascii_seq).collect::<Vec<_>>();
-            let simd_slice = hasher.hash_kmers_scalar(packed_seq).collect::<Vec<_>>();
-            assert_eq!(simd_slice, scalar_slice, "k={k}, len={len}");
-        }
-    });
-}
-
-#[test]
-fn nthash_forward() {
-    test_hash(|k| NtHasher::<false>::new(k), false);
-}
-
-#[test]
-fn nthash_canonical() {
-    test_hash(|k| NtHasher::<true>::new(k), false);
-}
-
-#[test]
-fn mulhash_forward() {
-    test_hash(|k| MulHasher::<false>::new(k), false);
-}
-
-#[test]
-fn mulhash_canonical() {
-    test_hash(|k| MulHasher::<true>::new(k), false);
-}
-
-#[test]
-fn anti_lex_forward() {
-    test_hash(|k| AntiLexHasher::<false>::new(k), true);
-}
-
-#[test]
-fn anti_lex_canonical() {
-    test_hash(|k| AntiLexHasher::<true>::new(k), true);
-}
-
-#[test]
-fn canonical_is_revcomp() {
-    fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
-        let seq = &*ASCII_SEQ;
-        let seq_rc = seq.as_slice().to_revcomp();
-
-        for k in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
-        ] {
-            let hasher = hasher(k);
-            for len in (0..100).chain((0..10).map(|_| random_range(1024..8 * 1024))) {
-                let seq = seq.slice(0..len);
-                let seq_rc = seq_rc.slice(seq_rc.len() - len..seq_rc.len());
-                let scalar = hasher.hash_kmers_scalar(seq).collect::<Vec<_>>();
-                let scalar_rc = hasher.hash_kmers_scalar(seq_rc).collect::<Vec<_>>();
-                let scalar_rc_rc = scalar_rc.iter().rev().copied().collect_vec();
-                assert_eq!(
-                    scalar_rc_rc,
-                    scalar,
-                    "k={}, len={} {:032b} {:032b}",
-                    k,
-                    len,
-                    scalar.first().unwrap_or(&0),
-                    scalar_rc_rc.first().unwrap_or(&0)
-                );
-            }
-        }
-    }
-    f(|k| NtHasher::<true>::new(k));
-    f(|k| MulHasher::<true>::new(k));
-    f(|k| AntiLexHasher::<true>::new(k));
 }
 
 #[test]

@@ -4,10 +4,13 @@ use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use seq_hash::{KmerHasher, MulHasher, NtHasher};
 use simd_minimizers::{
+    canonical_minimizer_positions_with_hasher,
     collect::CollectAndDedup,
-    canonical_minimizer_positions, minimizer_positions,
+    minimizer_positions_with_hasher,
     private::*,
-    scalar::{canonical_minimizer_positions_scalar, minimizer_positions_scalar},
+    scalar::{
+        canonical_minimizer_positions_scalar_with_hasher, minimizer_positions_scalar_with_hasher,
+    },
     Cache,
 };
 use simd_minimizers_bench::*;
@@ -88,25 +91,25 @@ fn bench_short(w: usize, k: usize) {
         time(&format!("simd-minimizers"), params, || {
             for s in &packed_seqs {
                 v.clear();
-                minimizer_positions(s.as_slice(), &fwd_hasher, w, v);
+                minimizer_positions_with_hasher(s.as_slice(), &fwd_hasher, w, v);
             }
         });
         time(&format!("simd-minimizers scalar"), params, || {
             for s in &packed_seqs {
                 v.clear();
-                minimizer_positions_scalar(s.as_slice(), &fwd_hasher, w, v);
+                minimizer_positions_scalar_with_hasher(s.as_slice(), &fwd_hasher, w, v);
             }
         });
         time(&format!("canonical simd-minimizers"), params, || {
             for s in &packed_seqs {
                 v.clear();
-                canonical_minimizer_positions(s.as_slice(), &can_hasher, w, v);
+                canonical_minimizer_positions_with_hasher(s.as_slice(), &can_hasher, w, v);
             }
         });
         time(&format!("canonical simd-minimizers scalar"), params, || {
             for s in &packed_seqs {
                 v.clear();
-                canonical_minimizer_positions_scalar(s.as_slice(), &can_hasher, w, v);
+                canonical_minimizer_positions_scalar_with_hasher(s.as_slice(), &can_hasher, w, v);
             }
         });
     }
@@ -152,11 +155,11 @@ fn plot() {
             {
                 time("simd-minimizers", params, || {
                     v2.clear();
-                    minimizer_positions(packed_seq, &fwd_hasher, w, v2);
+                    minimizer_positions_with_hasher(packed_seq, &fwd_hasher, w, v2);
                 });
                 time("canonical simd-minimizers", params, || {
                     v2.clear();
-                    canonical_minimizer_positions(packed_seq, &can_hasher, w, v2);
+                    canonical_minimizer_positions_with_hasher(packed_seq, &can_hasher, w, v2);
                 });
 
                 time_v(v2, "minimizer-iter", params, || {
@@ -268,7 +271,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         time("fwd-dedup", params, || {
             v2.clear();
-            minimizer_positions(packed_seq, &fwd_hasher, w, v2);
+            minimizer_positions_with_hasher(packed_seq, &fwd_hasher, w, v2);
         });
 
         time_ve(v, "canonical-nthash", params, |v| {
@@ -287,7 +290,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
         time("canonical-dedup", params, || {
             v2.clear();
-            canonical_minimizer_positions(packed_seq, &can_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(packed_seq, &can_hasher, w, v2);
         });
     }
 
@@ -298,48 +301,48 @@ fn bench_minimizers(w: usize, k: usize) {
         eprintln!("\nFinal functions\n");
         time("simd-minimizers", params, || {
             v2.clear();
-            minimizer_positions(packed_seq, &fwd_hasher, w, v2);
+            minimizer_positions_with_hasher(packed_seq, &fwd_hasher, w, v2);
         });
         time("canonical simd-minimizers", params, || {
             v2.clear();
-            canonical_minimizer_positions(packed_seq, &can_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(packed_seq, &can_hasher, w, v2);
         });
         time("mul simd-minimizers", params, || {
             v2.clear();
-            minimizer_positions(packed_seq, &fwd_mul_hasher, w, v2);
+            minimizer_positions_with_hasher(packed_seq, &fwd_mul_hasher, w, v2);
         });
         time("mul canonical simd-minimizers", params, || {
             v2.clear();
-            canonical_minimizer_positions(packed_seq, &can_mul_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(packed_seq, &can_mul_hasher, w, v2);
         });
         let seq = packed_seq.iter_bp().map(|x| unpack_base(x)).collect_vec();
         let ascii_seq = AsciiSeq(&seq);
 
         time("ascii-dna simd-minimizers", params, || {
             v2.clear();
-            minimizer_positions(ascii_seq, &fwd_hasher, w, v2);
+            minimizer_positions_with_hasher(ascii_seq, &fwd_hasher, w, v2);
         });
         time("ascii-dna canonical simd-minimizers", params, || {
             v2.clear();
-            canonical_minimizer_positions(ascii_seq, &can_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(ascii_seq, &can_hasher, w, v2);
         });
 
         time("ascii-dna mul simd-minimizers", params, || {
             v2.clear();
-            minimizer_positions(ascii_seq, &fwd_mul_hasher, w, v2);
+            minimizer_positions_with_hasher(ascii_seq, &fwd_mul_hasher, w, v2);
         });
         time("ascii-dna mul canonical simd-minimizers", params, || {
             v2.clear();
-            canonical_minimizer_positions(ascii_seq, &can_mul_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(ascii_seq, &can_mul_hasher, w, v2);
         });
 
         time("ascii mul simd-minimizers", params, || {
             v2.clear();
-            minimizer_positions(&seq[..], &fwd_mul_hasher, w, v2);
+            minimizer_positions_with_hasher(&seq[..], &fwd_mul_hasher, w, v2);
         });
         time("ascii mul canonical simd-minimizers", params, || {
             v2.clear();
-            canonical_minimizer_positions(&seq[..], &can_mul_hasher, w, v2);
+            canonical_minimizer_positions_with_hasher(&seq[..], &can_mul_hasher, w, v2);
         });
     }
 
@@ -390,7 +393,7 @@ fn bench_human_genome() {
         time("hg-fwd", Params { n, k, w }, || {
             let mut c = 0;
             for seq in &seqs {
-                minimizer_positions(seq.as_slice(), &fwd_hasher, w, &mut v);
+                minimizer_positions_with_hasher(seq.as_slice(), &fwd_hasher, w, &mut v);
                 c += v.len();
                 black_box(&mut v).clear();
             }
@@ -403,7 +406,7 @@ fn bench_human_genome() {
         time("hg-canonical", Params { n, k, w }, || {
             let mut c = 0;
             for seq in &seqs {
-                canonical_minimizer_positions(seq.as_slice(), &can_hasher, w, &mut v);
+                canonical_minimizer_positions_with_hasher(seq.as_slice(), &can_hasher, w, &mut v);
                 c += v.len();
                 black_box(&mut v).clear();
             }
@@ -420,7 +423,7 @@ fn bench_human_genome() {
         time("hg-fwd-par", Params { n, k, w }, || {
             seqs.par_iter().for_each(|seq| {
                 V.with_borrow_mut(|v| {
-                    minimizer_positions(seq.as_slice(), &fwd_hasher, w, v);
+                    minimizer_positions_with_hasher(seq.as_slice(), &fwd_hasher, w, v);
                     black_box(v).clear();
                 });
             });
@@ -428,7 +431,7 @@ fn bench_human_genome() {
         time("hg-canonical-par", Params { n, k, w }, || {
             seqs.par_iter().for_each(|seq| {
                 V.with_borrow_mut(|v| {
-                    canonical_minimizer_positions(seq.as_slice(), &can_hasher, w, v);
+                    canonical_minimizer_positions_with_hasher(seq.as_slice(), &can_hasher, w, v);
                     black_box(v).clear();
                 });
             });

@@ -6,7 +6,12 @@ use itertools::Itertools;
 use packed_seq::{PackedSeqVec, SeqVec};
 use seq_hash::KmerHasher;
 use simd_minimizers::{
-    canonical_minimizer_positions, collect::CollectAndDedup, minimizer_positions, private::{minimizers::*, S}, seq_hash::NtHasher, Cache
+    canonical_minimizer_positions_with_hasher,
+    collect::CollectAndDedup,
+    minimizer_positions_with_hasher,
+    private::{minimizers::*, S},
+    seq_hash::NtHasher,
+    Cache,
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};
@@ -406,7 +411,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let mut vec = Vec::new();
             let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                minimizer_positions(packed_seq, &hasher, w, &mut vec);
+                minimizer_positions_with_hasher(packed_seq, &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             });
         });
@@ -438,7 +443,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let mut vec = Vec::new();
             let hasher = NtHasher::<true>::new(k);
             b.iter(|| {
-                canonical_minimizer_positions(packed_seq, &hasher, w, &mut vec);
+                canonical_minimizer_positions_with_hasher(packed_seq, &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             });
         });
@@ -473,7 +478,7 @@ fn human_genome(c: &mut Criterion) {
 
         b.iter(|| {
             for seq in &*seqs {
-                minimizer_positions(seq.as_slice(), &hasher, w, &mut vec);
+                minimizer_positions_with_hasher(seq.as_slice(), &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             }
         });
@@ -486,7 +491,7 @@ fn human_genome(c: &mut Criterion) {
         let hasher = NtHasher::<true>::new(k);
         b.iter(|| {
             for seq in &*seqs {
-                canonical_minimizer_positions(seq.as_slice(), &hasher, w, &mut vec);
+                canonical_minimizer_positions_with_hasher(seq.as_slice(), &hasher, w, &mut vec);
                 black_box(&mut vec).clear();
             }
         });

@@ -83,11 +83,9 @@
 //!
 //! let k = 5;
 //! let w = 7;
-//! // Forward (`false`) hasher
-//! let hasher = <seq_hash::NtHasher<false>>::new(k);
 //!
 //! let mut out_vec = Vec::new();
-//! simd_minimizers::scalar::minimizer_positions_scalar(ascii_seq, &hasher, w, &mut out_vec);
+//! simd_minimizers::scalar::minimizer_positions_scalar(ascii_seq, k, w, &mut out_vec);
 //! assert_eq!(out_vec, vec![4, 5, 8, 13]);
 //! ```
 //!
@@ -102,12 +100,10 @@
 //!
 //! let k = 5;
 //! let w = 7;
-//! // Canonical hasher
-//! let hasher = <seq_hash::NtHasher>::new(k);
 //!
 //! let mut fwd_pos = Vec::new();
 //! // Unfortunately, `PackedSeqVec` can not `Deref` into a `PackedSeq`, so `as_slice` is needed.
-//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
+//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut fwd_pos);
 //! assert_eq!(fwd_pos, vec![0, 7, 9, 15]);
 //!
 //! let fwd_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &fwd_pos).collect();
@@ -125,7 +121,7 @@
 //! // Check that reverse complement sequence has minimizers at 'reverse' positions.
 //! let rc_packed_seq = packed_seq.as_slice().to_revcomp();
 //! let mut rc_pos = Vec::new();
-//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), &hasher, w, &mut rc_pos);
+//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), k, w, &mut rc_pos);
 //! assert_eq!(rc_pos, vec![2, 8, 10, 17]);
 //! for (fwd, &rc) in std::iter::zip(fwd_pos, rc_pos.iter().rev()) {
 //!     assert_eq!(fwd as usize, seq.len() - k - rc as usize);
@@ -147,10 +143,11 @@
 //! let k = 5;
 //! let w = 7;
 //! let seed = 101010;
+//! // Canonical by default. Use `NtHasher<false>` for forward-only.
 //! let hasher = <seq_hash::NtHasher>::new_with_seed(k, seed);
 //!
 //! let mut fwd_pos = Vec::new();
-//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
+//! simd_minimizers::canonical_minimizer_positions_with_hasher(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
 //! ```
 
 mod canonical;
@@ -195,6 +192,7 @@ use packed_seq::Seq;
 use seq_hash::KmerHasher;
 
 pub use minimizers::one_minimizer;
+use seq_hash::NtHasher;
 pub use sliding_min::Cache;
 
 thread_local! {
@@ -204,7 +202,13 @@ thread_local! {
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.
 ///
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
-pub fn minimizer_positions<'s>(
+pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
+    let hasher = NtHasher::<false>::new(k);
+    minimizer_positions_with_hasher(seq, &hasher, w, out_vec);
+}
+
+/// Variant of [`minimizer_positions`] that takes a custom [`seq_hash::KmerHasher`].
+pub fn minimizer_positions_with_hasher<'s>(
     seq: impl Seq<'s>,
     hasher: &impl KmerHasher,
     w: usize,
@@ -222,6 +226,17 @@ pub fn minimizer_positions<'s>(
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 pub fn canonical_minimizer_positions<'s>(
     seq: impl Seq<'s>,
+    k: usize,
+    w: usize,
+    out_vec: &mut Vec<u32>,
+) {
+    let hasher = NtHasher::<true>::new(k);
+    canonical_minimizer_positions_with_hasher(seq, &hasher, w, out_vec);
+}
+
+/// Variant of [`canonical_minimizer_positions`] that takes a custom [`seq_hash::KmerHasher`].
+pub fn canonical_minimizer_positions_with_hasher<'s>(
+    seq: impl Seq<'s>,
     hasher: &impl KmerHasher,
     w: usize,
     out_vec: &mut Vec<u32>,
@@ -235,6 +250,18 @@ pub fn canonical_minimizer_positions<'s>(
 ///
 /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
 pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    let hasher = NtHasher::<false>::new(k);
+    minimizer_and_superkmer_positions_with_hasher(seq, &hasher, w, min_pos_vec, sk_pos_vec);
+}
+
+/// Variant of [`minimizer_and_superkmer_positions`] that takes a custom [`seq_hash::KmerHasher`].
+pub fn minimizer_and_superkmer_positions_with_hasher<'s, S: Seq<'s>>(
     seq: S,
     hasher: &impl KmerHasher,
     w: usize,
@@ -253,6 +280,24 @@ pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
 ///
 /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
 pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
+    seq: S,
+    k: usize,
+    w: usize,
+    min_pos_vec: &mut Vec<u32>,
+    sk_pos_vec: &mut Vec<u32>,
+) {
+    let hasher = NtHasher::<true>::new(k);
+    canonical_minimizer_and_superkmer_positions_with_hasher(
+        seq,
+        &hasher,
+        w,
+        min_pos_vec,
+        sk_pos_vec,
+    );
+}
+
+/// Variant of [`canonical_minimizer_and_superkmer_positions`] that takes a custom [`seq_hash::KmerHasher`].
+pub fn canonical_minimizer_and_superkmer_positions_with_hasher<'s, S: Seq<'s>>(
     seq: S,
     hasher: &impl KmerHasher,
     w: usize,
@@ -337,6 +382,16 @@ pub mod scalar {
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn minimizer_positions_scalar<'s, S: Seq<'s>>(
         seq: S,
+        k: usize,
+        w: usize,
+        out_vec: &mut Vec<u32>,
+    ) {
+        let hasher = NtHasher::<false>::new(k);
+        minimizer_positions_scalar_with_hasher(seq, &hasher, w, out_vec);
+    }
+    /// Variant of [`minimizer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
+    pub fn minimizer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
+        seq: S,
         hasher: &impl KmerHasher,
         w: usize,
         out_vec: &mut Vec<u32>,
@@ -353,6 +408,16 @@ pub mod scalar {
     ///
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        out_vec: &mut Vec<u32>,
+    ) {
+        let hasher = NtHasher::<true>::new(k);
+        canonical_minimizer_positions_scalar_with_hasher(seq, &hasher, w, out_vec);
+    }
+    /// Variant of [`canonical_minimizer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
+    pub fn canonical_minimizer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
         seq: S,
         hasher: &impl KmerHasher,
         w: usize,
@@ -371,6 +436,23 @@ pub mod scalar {
     ///
     /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
     pub fn minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        let hasher = NtHasher::<false>::new(k);
+        minimizer_and_superkmer_positions_scalar_with_hasher(
+            seq,
+            &hasher,
+            w,
+            min_pos_vec,
+            sk_pos_vec,
+        );
+    }
+    /// Variant of [`minimizer_and_superkmer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
+    pub fn minimizer_and_superkmer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
         seq: S,
         hasher: &impl KmerHasher,
         w: usize,
@@ -395,6 +477,23 @@ pub mod scalar {
     ///
     /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
     pub fn canonical_minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
+        seq: S,
+        k: usize,
+        w: usize,
+        min_pos_vec: &mut Vec<u32>,
+        sk_pos_vec: &mut Vec<u32>,
+    ) {
+        let hasher = NtHasher::<true>::new(k);
+        canonical_minimizer_and_superkmer_positions_scalar_with_hasher(
+            seq,
+            &hasher,
+            w,
+            min_pos_vec,
+            sk_pos_vec,
+        );
+    }
+    /// Variant of [`canonical_minimizer_and_superkmer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
+    pub fn canonical_minimizer_and_superkmer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
         seq: S,
         hasher: &impl KmerHasher,
         w: usize,

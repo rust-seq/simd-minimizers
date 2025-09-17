@@ -64,20 +64,25 @@ fn bench(w: usize, n: usize, hasher: &impl KmerHasher, canonical: bool, simd: bo
         let s = std::time::Instant::now();
         if simd {
             if canonical {
-                simd_minimizers::canonical_minimizer_positions(seq.as_slice(), hasher, w, poss);
-            } else {
-                simd_minimizers::minimizer_positions(seq.as_slice(), hasher, w, poss);
-            }
-        } else {
-            if canonical {
-                simd_minimizers::scalar::canonical_minimizer_positions_scalar(
+                simd_minimizers::canonical_minimizer_positions_with_hasher(
                     seq.as_slice(),
                     hasher,
                     w,
                     poss,
                 );
             } else {
-                simd_minimizers::scalar::minimizer_positions_scalar(
+                simd_minimizers::minimizer_positions_with_hasher(seq.as_slice(), hasher, w, poss);
+            }
+        } else {
+            if canonical {
+                simd_minimizers::scalar::canonical_minimizer_positions_scalar_with_hasher(
+                    seq.as_slice(),
+                    hasher,
+                    w,
+                    poss,
+                );
+            } else {
+                simd_minimizers::scalar::minimizer_positions_scalar_with_hasher(
                     seq.as_slice(),
                     hasher,
                     w,

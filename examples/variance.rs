@@ -1,13 +1,10 @@
 use packed_seq::SeqVec;
-use seq_hash::NtHasher;
 
 fn main() {
     let k = 31;
     let w = 1000;
 
     eprintln!("k {k} w {w}");
-
-    let hasher = NtHasher::<false>::new(k);
 
     for n in [
         1030, 1100, 1200, 1500, 2000, 3000, 4000, 6000, 8000, 16000, 32000,
@@ -20,7 +17,7 @@ fn main() {
         for _ in 0..samples {
             let seq = packed_seq::PackedSeqVec::random(n);
             let poss = &mut vec![];
-            simd_minimizers::minimizer_positions(seq.as_slice(), &hasher, w, poss);
+            simd_minimizers::minimizer_positions(seq.as_slice(), k, w, poss);
 
             let x = poss.len();
 

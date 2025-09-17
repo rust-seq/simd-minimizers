@@ -52,7 +52,7 @@ fn test_on_inputs(mut f: impl FnMut(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
 
 #[test]
 fn minimizers_fwd() {
-    fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
+    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
         let mut cache = Cache::default();
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             let hasher = hasher(k);
@@ -84,7 +84,7 @@ fn minimizers_fwd() {
 
 #[test]
 fn minimizers_canonical() {
-    fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
+    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             if (k + w - 1) % 2 == 0 {
                 return;
@@ -117,7 +117,7 @@ fn minimizers_canonical() {
 
 #[test]
 fn minimizer_positions() {
-    fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
+    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             let hasher = hasher(k);
             let mut scalar_ascii = vec![];
@@ -142,7 +142,7 @@ fn minimizer_positions() {
 
 #[test]
 fn canonical_minimizer_positions() {
-    fn f<H: SeqHasher>(hasher: impl Fn(usize) -> H) {
+    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             if (k + w - 1) % 2 == 0 {
                 return;

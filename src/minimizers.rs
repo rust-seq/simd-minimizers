@@ -12,11 +12,11 @@ use super::{
 };
 use itertools::{izip, Itertools};
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
-use seq_hash::SeqHasher;
+use seq_hash::KmerHasher;
 use wide::u32x8;
 
 /// Minimizer position of a single window.
-pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl SeqHasher) -> usize {
+pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
     hasher
         .hash_kmers_scalar(seq)
         .map(|x| x & 0xffff_0000)
@@ -34,7 +34,7 @@ pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl SeqHasher) -> usize {
 #[inline(always)]
 pub fn minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
 ) -> impl ExactSizeIterator<Item = u32> {
@@ -52,7 +52,7 @@ pub fn minimizers_seq_scalar<'s>(
 #[inline(always)]
 pub fn minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
 ) -> PaddedIt<impl ChunkIt<u32x8>> {
@@ -71,11 +71,11 @@ pub fn minimizers_seq_simd<'s>(
 #[inline(always)]
 pub fn canonical_minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
 ) -> impl ExactSizeIterator<Item = u32> {
-    // TODO: Change to compile-time check on `impl SeqHasher<RC=true>` once supported.
+    // TODO: Change to compile-time check on `impl KmerHasher<RC=true>` once supported.
     assert!(hasher.is_canonical());
 
     let k = hasher.k();
@@ -126,7 +126,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
 #[inline(always)]
 pub fn canonical_minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
 ) -> PaddedIt<impl ChunkIt<u32x8>> {

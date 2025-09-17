@@ -1,6 +1,6 @@
 use clap::Parser;
 use packed_seq::SeqVec;
-use seq_hash::{NtHasher, SeqHasher};
+use seq_hash::{KmerHasher, NtHasher};
 
 #[derive(clap::Parser)]
 struct Args {
@@ -52,7 +52,7 @@ fn main() {
     }
 }
 
-fn bench(w: usize, n: usize, hasher: &impl SeqHasher, canonical: bool, simd: bool) -> f32 {
+fn bench(w: usize, n: usize, hasher: &impl KmerHasher, canonical: bool, simd: bool) -> f32 {
     let total = 150_000_000;
     let samples = total / n;
 

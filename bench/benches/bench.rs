@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 use itertools::Itertools;
 use packed_seq::{PackedSeqVec, SeqVec};
-use seq_hash::SeqHasher;
+use seq_hash::KmerHasher;
 use simd_minimizers::{
     canonical_minimizer_positions, collect::CollectAndDedup, minimizer_positions, private::{minimizers::*, S}, seq_hash::NtHasher, Cache
 };

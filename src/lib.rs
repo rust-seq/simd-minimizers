@@ -187,7 +187,7 @@ use minimizers::{
 };
 use packed_seq::u32x8 as S;
 use packed_seq::Seq;
-use seq_hash::SeqHasher;
+use seq_hash::KmerHasher;
 
 pub use minimizers::one_minimizer;
 pub use sliding_min::Cache;
@@ -201,7 +201,7 @@ thread_local! {
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 pub fn minimizer_positions<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
@@ -217,7 +217,7 @@ pub fn minimizer_positions<'s>(
 /// Positions are appended to a reusable `out_vec` to avoid allocations.
 pub fn canonical_minimizer_positions<'s>(
     seq: impl Seq<'s>,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     out_vec: &mut Vec<u32>,
 ) {
@@ -231,7 +231,7 @@ pub fn canonical_minimizer_positions<'s>(
 /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
 pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     seq: S,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     min_pos_vec: &mut Vec<u32>,
     sk_pos_vec: &mut Vec<u32>,
@@ -249,7 +249,7 @@ pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
 /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
 pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     seq: S,
-    hasher: &impl SeqHasher,
+    hasher: &impl KmerHasher,
     w: usize,
     min_pos_vec: &mut Vec<u32>,
     sk_pos_vec: &mut Vec<u32>,
@@ -332,7 +332,7 @@ pub mod scalar {
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn minimizer_positions_scalar<'s, S: Seq<'s>>(
         seq: S,
-        hasher: &impl SeqHasher,
+        hasher: &impl KmerHasher,
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
@@ -349,7 +349,7 @@ pub mod scalar {
     /// Positions are appended to a reusable `out_vec` to avoid allocations.
     pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
         seq: S,
-        hasher: &impl SeqHasher,
+        hasher: &impl KmerHasher,
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
@@ -367,7 +367,7 @@ pub mod scalar {
     /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
     pub fn minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
         seq: S,
-        hasher: &impl SeqHasher,
+        hasher: &impl KmerHasher,
         w: usize,
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,
@@ -391,7 +391,7 @@ pub mod scalar {
     /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
     pub fn canonical_minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
         seq: S,
-        hasher: &impl SeqHasher,
+        hasher: &impl KmerHasher,
         w: usize,
         min_pos_vec: &mut Vec<u32>,
         sk_pos_vec: &mut Vec<u32>,

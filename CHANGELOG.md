@@ -1,8 +1,14 @@
 # Changelog
 
-## Master
+## 2.0
 - Move `simd-minimizers` crate from subdir into the repo root.
 - Rename `simd-minimizers-bench` to just `bench`.
+- Cleanups (use Rust 2024 edition; drop some public-but-unused functions).
+- Improve simd versions for short sequences by preventing over-allocating the output vector.
+- **Breaking**: Migrate to `packed-seq` `4.0` with `PaddedIt`.
+- **Breaking**: Improve simd versions for short sequences by reusing allocated buffers.
+- **Feature**: Use `seq-hash` crate to cleanly support multiple kmer hashers;
+  add `*_with_hasher` function variants.
 
 ## 1.4
 - Make `NtHash` and `MulHash` seedable.

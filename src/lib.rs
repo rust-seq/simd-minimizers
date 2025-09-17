@@ -72,46 +72,61 @@
 //!
 //! ## Examples
 //!
+//! #### Scalar `AsciiSeq`
+//!
 //! ```
 //! // Scalar ASCII version.
-//! use packed_seq::{Seq, AsciiSeq};
+//! use packed_seq::{SeqVec, AsciiSeq};
+//!
 //! let seq = b"ACGTGCTCAGAGACTCAG";
 //! let ascii_seq = AsciiSeq(seq);
+//!
 //! let k = 5;
 //! let w = 7;
+//! // Forward (`false`) hasher
+//! let hasher = <seq_hash::NtHasher<false>>::new(k);
+//!
 //! let mut out_vec = Vec::new();
-//! simd_minimizers::scalar::minimizer_positions_scalar(ascii_seq, k, w, &mut out_vec);
-//! assert_eq!(out_vec, vec![0, 6, 8, 10, 12]);
+//! simd_minimizers::scalar::minimizer_positions_scalar(ascii_seq, &hasher, w, &mut out_vec);
+//! assert_eq!(out_vec, vec![4, 5, 8, 13]);
 //! ```
+//!
+//! #### SIMD `PackedSeq`
 //!
 //! ```
 //! // Packed SIMD version.
 //! use packed_seq::{PackedSeqVec, SeqVec, Seq};
-//! let seq = b"ACGTGCTCAGAGACTCAG";
+//!
+//! let seq = b"ACGTGCTCAGAGACTCAGAGGA";
+//! let packed_seq = PackedSeqVec::from_ascii(seq);
+//!
 //! let k = 5;
 //! let w = 7;
+//! // Canonical hasher
+//! let hasher = <seq_hash::NtHasher>::new(k);
 //!
-//! let packed_seq = PackedSeqVec::from_ascii(seq);
 //! let mut fwd_pos = Vec::new();
 //! // Unfortunately, `PackedSeqVec` can not `Deref` into a `PackedSeq`, so `as_slice` is needed.
-//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut fwd_pos);
-//! assert_eq!(fwd_pos, vec![3, 5, 12]);
+//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
+//! assert_eq!(fwd_pos, vec![0, 7, 9, 15]);
 //!
 //! let fwd_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &fwd_pos).collect();
 //! assert_eq!(fwd_vals, vec![
-//!     // A C G A G, GAGCA is rc of TGCTC at pos 3
-//!     0b0001110011,
-//!     // G A C T C, CTCAG is at pos 5
-//!     0b1100011001,
-//!     // A C T C A, ACTCA is at pos 12
-//!     0b0001100100
+//!     // T  G  C  A  C, CACGT is rc of ACGTG at pos 0
+//!     0b10_11_01_00_01,
+//!     // G  A  G  A  C, CAGAG is at pos 7
+//!     0b11_00_11_00_01,
+//!     // C  A  G  A  G, GAGAC is at pos 9
+//!     0b01_00_11_00_11,
+//!     // G  A  G  A  C, CAGAG is at pos 15
+//!     0b11_00_11_00_01
 //! ]);
 //!
 //! // Check that reverse complement sequence has minimizers at 'reverse' positions.
 //! let rc_packed_seq = packed_seq.as_slice().to_revcomp();
 //! let mut rc_pos = Vec::new();
-//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), k, w, &mut rc_pos);
-//! assert_eq!(rc_pos, vec![1, 8, 10]);
+//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), &hasher, w, &mut rc_pos);
+//! assert_eq!(rc_pos, vec![2, 8, 10, 17]);
 //! for (fwd, &rc) in std::iter::zip(fwd_pos, rc_pos.iter().rev()) {
 //!     assert_eq!(fwd as usize, seq.len() - k - rc as usize);
 //! }
@@ -120,17 +135,22 @@
 //! assert_eq!(rc_vals, fwd_vals);
 //! ```
 //!
+//! #### Seeded hasher
+//!
 //! ```
 //! // Packed SIMD version with seeded hashes.
-//! use packed_seq::{PackedSeqVec, SeqVec, Seq};
+//! use packed_seq::{PackedSeqVec, SeqVec};
+//!
 //! let seq = b"ACGTGCTCAGAGACTCAG";
+//! let packed_seq = PackedSeqVec::from_ascii(seq);
+//!
 //! let k = 5;
 //! let w = 7;
 //! let seed = 101010;
+//! let hasher = <seq_hash::NtHasher>::new_with_seed(k, seed);
 //!
-//! let packed_seq = PackedSeqVec::from_ascii(seq);
 //! let mut fwd_pos = Vec::new();
-//! simd_minimizers::seeded::canonical_minimizer_positions(packed_seq.as_slice(), k, w, seed, &mut fwd_pos);
+//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
 //! ```
 
 mod canonical;

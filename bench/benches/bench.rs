@@ -387,11 +387,13 @@ fn simd_minimizer(c: &mut Criterion) {
         //     },
         // );
 
+        let mut cache = Cache::default();
+
         g.bench_function(BenchmarkId::new("minimizer_par_it_vec", len), |b| {
             let mut vec = Vec::new();
             let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                vec.extend(minimizers_seq_simd(packed_seq, &hasher, w).it);
+                vec.extend(minimizers_seq_simd(packed_seq, &hasher, w, &mut cache).it);
                 black_box(&mut vec).clear();
             });
         });
@@ -399,7 +401,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
                 black_box(
-                    minimizers_seq_simd(packed_seq, &hasher, w)
+                    minimizers_seq_simd(packed_seq, &hasher, w, &mut cache)
                         .it
                         .sum::<S>(),
                 )
@@ -409,7 +411,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let mut vec = Vec::new();
             let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                let head_tail = minimizers_seq_simd(packed_seq, &hasher, w);
+                let head_tail = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
                 collect_into(head_tail, &mut vec);
                 black_box(&mut vec).clear();
             });
@@ -430,7 +432,7 @@ fn simd_minimizer(c: &mut Criterion) {
                 let mut vec2 = Vec::new();
             let hasher = NtHasher::<false>::new(k);
                 b.iter(|| {
-                    let head_tail = minimizers_seq_simd(packed_seq, &hasher, w);
+                    let head_tail = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
                     collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                     black_box(&mut vec2).clear();
@@ -442,7 +444,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let mut vec = Vec::new();
             let hasher = NtHasher::<true>::new(k);
             b.iter(|| {
-                vec.extend(canonical_minimizers_seq_simd(packed_seq, &hasher, w).it);
+                vec.extend(canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut cache).it);
                 black_box(&mut vec).clear();
             });
         });
@@ -461,7 +463,7 @@ fn simd_minimizer(c: &mut Criterion) {
                 let mut vec2 = Vec::new();
             let hasher = NtHasher::<true>::new(k);
                 b.iter(|| {
-                    let head_tail = canonical_minimizers_seq_simd(packed_seq, &hasher, w);
+                    let head_tail = canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
                     collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                 })

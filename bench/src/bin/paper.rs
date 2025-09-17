@@ -1,13 +1,12 @@
 use itertools::Itertools;
-use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec};
-use rand::{random_range, Rng};
+use packed_seq::{AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec, unpack_base};
+use rand::{Rng, random_range};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use seq_hash::{MulHasher, NtHasher, SeqHasher};
 use simd_minimizers::{
-    canonical_minimizer_positions, minimizer_positions,
+    Cache, canonical_minimizer_positions, minimizer_positions,
     private::*,
-    scalar::canonical_minimizer_positions_scalar,
-    scalar::minimizer_positions_scalar,
+    scalar::{canonical_minimizer_positions_scalar, minimizer_positions_scalar},
 };
 use simd_minimizers_bench::*;
 use std::{cell::RefCell, hint::black_box};
@@ -116,6 +115,8 @@ fn plot() {
     let n = 10_000_000;
     // let n = 100_000_000;
 
+    let mut cache = Cache::default();
+
     for k in [5, 11, 19, 31] {
         let fwd_hasher = NtHasher::<false>::new(k);
         let can_hasher = NtHasher::<true>::new(k);
@@ -139,12 +140,22 @@ fn plot() {
             // warmup
             {
                 collect::collect_into(
-                    minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w),
+                    minimizers::canonical_minimizers_seq_simd(
+                        packed_seq,
+                        &can_hasher,
+                        w,
+                        &mut cache,
+                    ),
                     v2,
                 );
                 v2.clear();
                 collect::collect_and_dedup_into(
-                    minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w),
+                    minimizers::canonical_minimizers_seq_simd(
+                        packed_seq,
+                        &can_hasher,
+                        w,
+                        &mut cache,
+                    ),
                     v2,
                 );
                 v2.clear();
@@ -208,18 +219,20 @@ fn bench_minimizers(w: usize, k: usize) {
 
     let v = &mut vec![];
     let v2 = &mut vec![];
+    let cache = &mut Cache::default();
+
     // warmup
     {
         v.extend(packed_seq.par_iter_bp(k + w - 1).it);
         v.clear();
 
         collect::collect_into(
-            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w),
+            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
             v2,
         );
         v2.clear();
         collect::collect_and_dedup_into(
-            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w),
+            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
             v2,
         );
         v2.clear();
@@ -261,14 +274,14 @@ fn bench_minimizers(w: usize, k: usize) {
         time_v(v, "nthash", params, || {
             fwd_hasher.hash_kmers_simd(packed_seq, w - 1).it
         });
-        time_v(v, "sliding_min", params, || {
-            minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w).it
+        time_ve(v, "sliding_min", params, |v| {
+            v.extend(minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w, cache).it);
         });
 
         time("fwd-collect", params, || {
             v2.clear();
             collect::collect_into(
-                minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w),
+                minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w, cache),
                 v2,
             )
         });
@@ -277,17 +290,19 @@ fn bench_minimizers(w: usize, k: usize) {
             minimizer_positions(packed_seq, &fwd_hasher, w, v2);
         });
 
-        time_v(v, "canonical-nthash", params, || {
-            minimizers::minimizers_seq_simd(packed_seq, &can_hasher, w).it
+        time_ve(v, "canonical-nthash", params, |v| {
+            v.extend(minimizers::minimizers_seq_simd(packed_seq, &can_hasher, w, cache).it);
         });
-        time_v(v, "canonical-strand", params, || {
-            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w).it
+        time_ve(v, "canonical-strand", params, |v| {
+            v.extend(
+                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache).it,
+            );
         });
 
         time("canonical-collect", params, || {
             v2.clear();
             collect::collect_into(
-                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w),
+                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
                 v2,
             )
         });
@@ -493,11 +508,24 @@ fn time_v<T: std::iter::Sum, I: Iterator<Item = T>>(
     v: &mut Vec<T>,
     name: &str,
     params: Params,
-    mut f: impl FnMut() -> I + Clone,
+    mut f: impl FnMut() -> I,
 ) {
     time(&format!("{name}"), params, || {
         v.clear();
         v.extend(f())
+    });
+    v.clear();
+}
+
+fn time_ve<T: std::iter::Sum>(
+    v: &mut Vec<T>,
+    name: &str,
+    params: Params,
+    mut f: impl FnMut(&mut Vec<T>),
+) {
+    time(&format!("{name}"), params, || {
+        v.clear();
+        f(v);
     });
     v.clear();
 }

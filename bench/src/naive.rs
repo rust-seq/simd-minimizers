@@ -32,7 +32,13 @@ pub struct Buffered;
 impl<V: Copy + Max + Ord> SlidingMin<V> for Buffered {
     fn sliding_min(&self, w: usize, it: impl Iterator<Item = V>) -> impl Iterator<Item = Elem<V>> {
         // A ring buffer that holds the w last elements.
-        let mut ring_buf = RingBuf::new(w, Elem { val: V::MAX, pos: 0 });
+        let mut ring_buf = RingBuf::new(
+            w,
+            Elem {
+                val: V::MAX,
+                pos: 0,
+            },
+        );
         // Iterate over items and their positions.
         it.enumerate()
             .map(move |(pos, val)| {

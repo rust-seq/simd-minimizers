@@ -9,7 +9,10 @@ struct CountCompare<'a, V> {
 }
 
 impl<V: Max> Max for CountCompare<'_, V> {
-    const MAX: Self = CountCompare { val: V::MAX, count_cmp: None };
+    const MAX: Self = CountCompare {
+        val: V::MAX,
+        count_cmp: None,
+    };
 }
 
 impl<V: Ord> PartialOrd for CountCompare<'_, V> {
@@ -39,12 +42,16 @@ struct CountingHash<'a, H: Hasher> {
 impl<'a, H: Hasher> Hasher for CountingHash<'a, H> {
     type Out = CountCompare<'a, H::Out>;
     fn hash(&self, t: &[u8]) -> Self::Out {
-        CountCompare { val: self.hasher.hash(t), count_cmp: Some(self.count_cmp) }
+        CountCompare {
+            val: self.hasher.hash(t),
+            count_cmp: Some(self.count_cmp),
+        }
     }
     fn hash_kmers(&mut self, k: usize, t: &[u8]) -> impl Iterator<Item = Self::Out> {
-        self.hasher
-            .hash_kmers(k, t)
-            .map(|val| CountCompare { val, count_cmp: Some(self.count_cmp) })
+        self.hasher.hash_kmers(k, t).map(|val| CountCompare {
+            val,
+            count_cmp: Some(self.count_cmp),
+        })
     }
 }
 
@@ -60,7 +67,10 @@ pub fn count_comparisons() {
         let n = n as f32;
 
         let cnt = Cell::new(0);
-        let hasher = CountingHash { count_cmp: &cnt, hasher: FxHash };
+        let hasher = CountingHash {
+            count_cmp: &cnt,
+            hasher: FxHash,
+        };
 
         #[rustfmt::skip]
         let minimizers: &mut [(&str, &mut dyn Minimizer, bool)] = &mut [

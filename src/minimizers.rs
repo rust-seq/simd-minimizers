@@ -3,14 +3,14 @@ use std::iter::zip;
 
 use crate::{
     canonical,
-    sliding_min::{Cache, sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar},
+    sliding_min::{sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar, Cache},
 };
 
 use super::{
     canonical::canonical_mapper_simd,
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
-use itertools::{Itertools, izip};
+use itertools::{izip, Itertools};
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::SeqHasher;
 use wide::u32x8;

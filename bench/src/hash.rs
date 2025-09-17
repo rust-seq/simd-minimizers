@@ -83,7 +83,10 @@ pub struct BufferDouble<H> {
 }
 impl<H: Clone> BufferDouble<H> {
     pub fn new(hasher: H) -> Self {
-        Self { hasher1: hasher.clone(), hasher2: hasher }
+        Self {
+            hasher1: hasher.clone(),
+            hasher2: hasher,
+        }
     }
 }
 impl<H: Hasher<Out: Default + Clone>> Hasher for BufferDouble<H> {

@@ -5,7 +5,10 @@ pub struct Split;
 
 impl<V: Ord + Copy + Max> SlidingMin<V> for Split {
     fn sliding_min(&self, w: usize, it: impl Iterator<Item = V>) -> impl Iterator<Item = Elem<V>> {
-        let mut prefix_min = Elem { val: V::MAX, pos: 0 };
+        let mut prefix_min = Elem {
+            val: V::MAX,
+            pos: 0,
+        };
         let mut ring_buf = RingBuf::new(w, prefix_min);
 
         it.enumerate()
@@ -20,7 +23,10 @@ impl<V: Ord + Copy + Max> SlidingMin<V> for Split {
                         suffix_min = suffix_min.min(*elem);
                         *elem = suffix_min;
                     }
-                    prefix_min = Elem { val: V::MAX, pos: 0 };
+                    prefix_min = Elem {
+                        val: V::MAX,
+                        pos: 0,
+                    };
                 }
                 prefix_min.min(ring_buf[ring_buf.idx()])
             })
@@ -32,7 +38,10 @@ pub struct SplitOpt;
 
 impl<V: Ord + Copy + Max> SlidingMin<V> for SplitOpt {
     fn sliding_min(&self, w: usize, it: impl Iterator<Item = V>) -> impl Iterator<Item = Elem<V>> {
-        let mut prefix_min = Elem { val: V::MAX, pos: 0 };
+        let mut prefix_min = Elem {
+            val: V::MAX,
+            pos: 0,
+        };
         let mut ring_buf = RingBuf::new(w, prefix_min);
 
         it.enumerate()
@@ -51,7 +60,10 @@ impl<V: Ord + Copy + Max> SlidingMin<V> for SplitOpt {
                             ring_buf[i]
                         };
                     }
-                    prefix_min = Elem { val: V::MAX, pos: 0 };
+                    prefix_min = Elem {
+                        val: V::MAX,
+                        pos: 0,
+                    };
                 }
                 let suffix_min = ring_buf[ring_buf.idx()];
                 if suffix_min.val <= prefix_min.val {

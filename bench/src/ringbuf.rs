@@ -56,7 +56,10 @@ impl<V> RingBuf<V> {
     where
         V: Copy + Ord + Max,
     {
-        let mut min = Elem { val: V::MAX, pos: 0 };
+        let mut min = Elem {
+            val: V::MAX,
+            pos: 0,
+        };
         for (idx, &v) in self
             .forward_slices()
             .into_iter()

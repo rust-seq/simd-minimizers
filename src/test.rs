@@ -3,7 +3,7 @@ use crate::minimizers::*;
 use collect::collect;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
-use rand::{Rng, random_range};
+use rand::{random_range, Rng};
 use seq_hash::{AntiLexHasher, MulHasher, NtHasher};
 use std::sync::LazyLock;
 

@@ -188,8 +188,8 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-use packed_seq::Seq;
 use packed_seq::u32x8 as S;
+use packed_seq::Seq;
 use seq_hash::SeqHasher;
 
 pub use minimizers::one_minimizer;

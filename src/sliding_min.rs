@@ -39,7 +39,6 @@ impl<V: Clone> RingBuf<V> {
         self
     }
 
-
     /// Returns the next index to be written.
     #[inline(always)]
     const fn idx(&self) -> usize {
@@ -77,14 +76,18 @@ impl<V> std::ops::DerefMut for RingBuf<V> {
 #[derive(Default)]
 pub struct Cache {
     scalar: RingBuf<u32>,
-    scalar_lr: RingBuf<(u32,u32)>,
+    scalar_lr: RingBuf<(u32, u32)>,
     simd: RingBuf<S>,
     simd_lr: RingBuf<(S, S)>,
 }
 
 /// Scalar version. Takes an iterator over values and returns an iterator over positions.
 #[inline(always)]
-pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(u32) -> u32 {
+pub fn sliding_min_mapper_scalar<const LEFT: bool>(
+    w: usize,
+    len: usize,
+    cache: &mut Cache,
+) -> impl FnMut(u32) -> u32 {
     assert!(w > 0);
     assert!(
         w < (1 << 15),
@@ -143,7 +146,11 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(w: usize, len: usize, cache: 
 }
 
 #[inline(always)]
-pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(u32) -> (u32, u32) {
+pub fn sliding_lr_min_mapper_scalar(
+    w: usize,
+    len: usize,
+    cache: &mut Cache,
+) -> impl FnMut(u32) -> (u32, u32) {
     assert!(w > 0);
     assert!(
         w < (1 << 15),
@@ -220,7 +227,11 @@ fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
 /// Output values are offset by `-(k-1)`, so that the k'th returned value (the first kmer) is at position 0.
 /// `len` is the number of values in each chunk. The SIMD lanes will be offset by `len-(k+w-2)`.
 /// The first `k+w-2` returned values are bogus, since they correspond to incomplete windows.
-pub fn sliding_min_mapper_simd<const LEFT: bool>(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(S) -> S {
+pub fn sliding_min_mapper_simd<const LEFT: bool>(
+    w: usize,
+    len: usize,
+    cache: &mut Cache,
+) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
@@ -296,7 +307,11 @@ fn reset_positions_offsets(
 }
 
 /// Like `sliding_min_mapper`, but returns both the leftmost and the rightmost minimum.
-pub fn sliding_lr_min_mapper_simd(w: usize, len: usize, cache: &mut Cache) -> impl FnMut(S) -> (S, S) {
+pub fn sliding_lr_min_mapper_simd(
+    w: usize,
+    len: usize,
+    cache: &mut Cache,
+) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
     assert!(len * 8 < (1 << 32));
@@ -316,13 +331,7 @@ pub fn sliding_lr_min_mapper_simd(w: usize, len: usize, cache: &mut Cache) -> im
         // Make sure the position does not interfere with the hash value.
         if pos == max_pos {
             // Slow case extracted to a function to have better inlining here.
-            reset_positions_offsets_lr(
-                w,
-                &mut pos,
-                &mut prefix_lr_min,
-                &mut pos_offset,
-                ring_buf,
-            );
+            reset_positions_offsets_lr(w, &mut pos, &mut prefix_lr_min, &mut pos_offset, ring_buf);
         }
         // slightly faster than assigning S::splat(u32::MAX)
         let lelem = (val & val_mask) | pos;

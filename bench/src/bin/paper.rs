@@ -1,12 +1,13 @@
 use itertools::Itertools;
-use packed_seq::{AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec, unpack_base};
-use rand::{Rng, random_range};
+use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec};
+use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use seq_hash::{MulHasher, NtHasher, SeqHasher};
 use simd_minimizers::{
-    Cache, canonical_minimizer_positions, minimizer_positions,
+    canonical_minimizer_positions, minimizer_positions,
     private::*,
     scalar::{canonical_minimizer_positions_scalar, minimizer_positions_scalar},
+    Cache,
 };
 use simd_minimizers_bench::*;
 use std::{cell::RefCell, hint::black_box};

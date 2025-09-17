@@ -23,7 +23,9 @@ fn main() {
 
     let Args { a, b, c, d, n } = Args::parse();
 
-    let ns = n.map(|n| vec![n]).unwrap_or( vec![50, 150, 300, 1000, 10000, 100000]);
+    let ns = n
+        .map(|n| vec![n])
+        .unwrap_or(vec![50, 150, 300, 1000, 10000, 100000]);
 
     eprintln!("      n   fwd simd/scalar   can simd/scalar");
     for n in ns {
@@ -50,13 +52,7 @@ fn main() {
     }
 }
 
-fn bench(
-    w: usize,
-    n: usize,
-    hasher: &impl SeqHasher,
-    canonical: bool,
-    simd: bool,
-) -> f32 {
+fn bench(w: usize, n: usize, hasher: &impl SeqHasher, canonical: bool, simd: bool) -> f32 {
     let total = 150_000_000;
     let samples = total / n;
 

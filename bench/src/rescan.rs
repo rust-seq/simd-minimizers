@@ -4,7 +4,10 @@ pub struct Rescan;
 
 impl<V: Ord + Copy + Max> SlidingMin<V> for Rescan {
     fn sliding_min(&self, w: usize, it: impl Iterator<Item = V>) -> impl Iterator<Item = Elem<V>> {
-        let mut min = Elem { val: V::MAX, pos: 0 };
+        let mut min = Elem {
+            val: V::MAX,
+            pos: 0,
+        };
         let mut ring_buf = RingBuf::new(w, min);
 
         it.enumerate()
@@ -26,7 +29,10 @@ pub struct RescanOpt;
 
 impl<V: Ord + Copy + Max> SlidingMin<V> for RescanOpt {
     fn sliding_min(&self, w: usize, it: impl Iterator<Item = V>) -> impl Iterator<Item = Elem<V>> {
-        let mut min = Elem { val: V::MAX, pos: 0 };
+        let mut min = Elem {
+            val: V::MAX,
+            pos: 0,
+        };
         // Store V instead of Elem.
         let mut ring_buf = RingBuf::new(w, V::MAX);
 

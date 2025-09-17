@@ -143,7 +143,10 @@ pub fn sliding_lr_min_mapper_scalar(w: usize, len: usize) -> impl FnMut(u32) -> 
     let mut pos_offset = 0;
 
     fn lr_min((al, ar): (u32, u32), (bl, br): (u32, u32)) -> (u32, u32) {
-        (al.min(bl), ar.max(br))
+        (
+            std::hint::select_unpredictable(al < bl, al, bl),
+            std::hint::select_unpredictable(ar > br, ar, br),
+        )
     }
 
     #[inline(always)]

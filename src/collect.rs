@@ -11,6 +11,30 @@ use wide::u32x8;
 
 use crate::intrinsics::transpose;
 
+pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec: &mut Vec<u32>) {
+    let Some(mut prev) = it.next() else {
+        out_vec.clear();
+        return;
+    };
+
+    out_vec.reserve(1);
+    unsafe { out_vec.set_len(out_vec.capacity()) };
+
+    let mut idx = 0;
+    out_vec[idx] = prev;
+
+    it.for_each(|x| {
+        idx += (x != prev) as usize;
+        if idx == out_vec.len() {
+            out_vec.reserve(1);
+            unsafe { out_vec.set_len(out_vec.capacity()) };
+        }
+        *unsafe { out_vec.get_unchecked_mut(idx) } = x;
+        prev = x;
+    });
+    out_vec.truncate(idx + 1);
+}
+
 /// Convenience wrapper around `collect_into`.
 pub fn collect(it: PaddedIt<impl ChunkIt<u32x8>>) -> Vec<u32> {
     let mut v = vec![];

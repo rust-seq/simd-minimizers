@@ -314,6 +314,8 @@ pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
 ///
 /// Can be used for testing and debugging.
 pub mod scalar {
+    use crate::collect::collect_and_dedup_into_scalar;
+
     use super::*;
 
     /// Deduplicated positions of all minimizers in the sequence.
@@ -326,7 +328,7 @@ pub mod scalar {
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
-        out_vec.extend(minimizers_seq_scalar(seq, hasher, w).dedup());
+        collect_and_dedup_into_scalar(minimizers_seq_scalar(seq, hasher, w), out_vec);
     }
 
     /// Deduplicated positions of all canonical minimizers in the sequence.
@@ -341,7 +343,7 @@ pub mod scalar {
         w: usize,
         out_vec: &mut Vec<u32>,
     ) {
-        out_vec.extend(canonical_minimizers_seq_scalar(seq, hasher, w).dedup());
+        collect_and_dedup_into_scalar(canonical_minimizers_seq_scalar(seq, hasher, w), out_vec);
     }
 
     /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers.

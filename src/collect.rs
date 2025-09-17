@@ -136,139 +136,152 @@ fn collect_and_dedup_into_impl<const SUPER: bool>(
     idx_vec: &mut Vec<u32>,
 ) {
     let PaddedIt { it, padding } = it;
-    CACHE.with(|v| {
-        let mut v = v.borrow_mut();
-        let (v, v2) = v.split_at_mut(8);
-        if SUPER {
-            // make sure out cache and idx cache have the same size at the start
-            for i in 0..8 {
-                v2[i].resize(v[i].len(), 0);
+    CACHE.with(
+        #[inline(always)]
+        |v| {
+            let mut v = v.borrow_mut();
+            let (v, v2) = v.split_at_mut(8);
+            if SUPER {
+                // make sure out cache and idx cache have the same size at the start
+                for i in 0..8 {
+                    v2[i].resize(v[i].len(), 0);
+                }
             }
-        }
 
-        let mut write_idx = [0; 8];
-        // Vec of last pushed elements in each lane.
-        let mut old = [S::MAX; 8];
+            let mut write_idx = [0; 8];
+            // Vec of last pushed elements in each lane.
+            let mut old = [S::MAX; 8];
 
-        let len = it.len();
-        let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
-        let offsets: [u32; 8] = from_fn(|i| i as u32);
-        let mut offsets: u32x8 = unsafe { transmute(offsets) };
+            let len = it.len();
+            let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
+            let offsets: [u32; 8] = from_fn(|i| i as u32);
+            let mut offsets: u32x8 = unsafe { transmute(offsets) };
 
-        let mut mask = u32x8::ZERO;
-        let mut padding_i = 0;
-        let mut padding_idx = 0;
-        assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
-        let mut remaining_padding = padding;
-        for i in (0..8).rev() {
-            if remaining_padding >= len {
-                mask.as_array_mut()[i] = u32::MAX;
-                remaining_padding -= len;
-                continue;
+            let mut mask = u32x8::ZERO;
+            let mut padding_i = 0;
+            let mut padding_idx = 0;
+            assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
+            let mut remaining_padding = padding;
+            for i in (0..8).rev() {
+                if remaining_padding >= len {
+                    mask.as_array_mut()[i] = u32::MAX;
+                    remaining_padding -= len;
+                    continue;
+                }
+                padding_i = len - remaining_padding;
+                padding_idx = i;
+                break;
             }
-            padding_i = len - remaining_padding;
-            padding_idx = i;
-            break;
-        }
 
-        let mut m = [u32x8::ZERO; 8];
-        let mut i = 0;
-        it.for_each(|x| {
-            if i == padding_i {
-                mask.as_array_mut()[padding_idx] = u32::MAX;
+            let mut m = [u32x8::ZERO; 8];
+            let mut i = 0;
+            it.for_each(
+                #[inline(always)]
+                |x| {
+                    if i == padding_i {
+                        mask.as_array_mut()[padding_idx] = u32::MAX;
+                    }
+                    let x = x | mask;
+                    m[i % 8] = x;
+                    if i % 8 == 7 {
+                        let t = transpose(m);
+                        for j in 0..8 {
+                            let lane = t[j];
+                            if write_idx[j] + 8 > v[j].len() {
+                                v[j].reserve(8);
+                                unsafe {
+                                    v[j].set_len(v[j].capacity());
+                                }
+                                if SUPER {
+                                    v2[j].reserve(v[j].len() - v2[j].len());
+                                    unsafe {
+                                        v2[j].set_len(v2[j].capacity());
+                                    }
+                                }
+                            }
+                            unsafe {
+                                if SUPER {
+                                    crate::intrinsics::append_unique_vals_2(
+                                        old[j],
+                                        lane,
+                                        lane,
+                                        offsets + lane_offsets[j],
+                                        &mut v[j],
+                                        &mut v2[j],
+                                        &mut write_idx[j],
+                                    );
+                                } else {
+                                    crate::intrinsics::append_unique_vals(
+                                        old[j],
+                                        lane,
+                                        lane,
+                                        &mut v[j],
+                                        &mut write_idx[j],
+                                    );
+                                }
+                            }
+                            old[j] = lane;
+                        }
+                        offsets += u32x8::splat(8);
+                    }
+                    i += 1;
+                },
+            );
+
+            for j in 0..8 {
+                v[j].truncate(write_idx[j]);
+                if SUPER {
+                    v2[j].truncate(write_idx[j]);
+                }
             }
-            let x = x | mask;
-            m[i % 8] = x;
-            if i % 8 == 7 {
-                let t = transpose(m);
-                for j in 0..8 {
-                    let lane = t[j];
-                    if write_idx[j] + 8 > v[j].len() {
-                        let new_len = v[j].len() + 1024;
-                        v[j].resize(new_len, 0);
+
+            // Manually write the unfinished parts of length k=i%8.
+            let t = transpose(m);
+            let k = i % 8;
+            for j in 0..8 {
+                let lane = t[j].as_array_ref();
+                for (p, x) in lane.iter().take(k).enumerate() {
+                    if v[j].last() != Some(x) {
+                        v[j].push(*x);
                         if SUPER {
-                            v2[j].resize(new_len, 0);
+                            v2[j].push(
+                                offsets.as_array_ref()[p] + lane_offsets[j].as_array_ref()[p],
+                            );
                         }
                     }
-                    unsafe {
-                        if SUPER {
-                            crate::intrinsics::append_unique_vals_2(
-                                old[j],
-                                lane,
-                                lane,
-                                offsets + lane_offsets[j],
-                                &mut v[j],
-                                &mut v2[j],
-                                &mut write_idx[j],
-                            );
-                        } else {
-                            crate::intrinsics::append_unique_vals(
-                                old[j],
-                                lane,
-                                lane,
-                                &mut v[j],
-                                &mut write_idx[j],
-                            );
-                        }
-                    }
-                    old[j] = lane;
                 }
-                offsets += u32x8::splat(8);
             }
-            i += 1;
-        });
 
-        for j in 0..8 {
-            v[j].truncate(write_idx[j]);
+            // Flatten v.
             if SUPER {
-                v2[j].truncate(write_idx[j]);
-            }
-        }
-
-        // Manually write the unfinished parts of length k=i%8.
-        let t = transpose(m);
-        let k = i % 8;
-        for j in 0..8 {
-            let lane = t[j].as_array_ref();
-            for (p, x) in lane.iter().take(k).enumerate() {
-                if v[j].last() != Some(x) {
-                    v[j].push(*x);
-                    if SUPER {
-                        v2[j].push(offsets.as_array_ref()[p] + lane_offsets[j].as_array_ref()[p]);
+                for (lane, lane2) in v.iter().zip(v2.iter()) {
+                    let mut lane = lane.as_slice();
+                    let mut lane2 = lane2.as_slice();
+                    while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
+                        lane = &lane[1..];
+                        lane2 = &lane2[1..];
                     }
+                    out_vec.extend_from_slice(lane);
+                    idx_vec.extend_from_slice(lane2);
+                }
+            } else {
+                for lane in v.iter() {
+                    let mut lane = lane.as_slice();
+                    while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
+                        lane = &lane[1..];
+                    }
+                    out_vec.extend_from_slice(lane);
                 }
             }
-        }
 
-        // Flatten v.
-        if SUPER {
-            for (lane, lane2) in v.iter().zip(v2.iter()) {
-                let mut lane = lane.as_slice();
-                let mut lane2 = lane2.as_slice();
-                while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
-                    lane = &lane[1..];
-                    lane2 = &lane2[1..];
+            // If we had padding, pop the last element.
+            if out_vec.last() == Some(&u32::MAX) {
+                assert!(padding > 0);
+                out_vec.pop();
+                if SUPER {
+                    idx_vec.pop();
                 }
-                out_vec.extend_from_slice(lane);
-                idx_vec.extend_from_slice(lane2);
             }
-        } else {
-            for lane in v.iter() {
-                let mut lane = lane.as_slice();
-                while !lane.is_empty() && Some(lane[0]) == out_vec.last().copied() {
-                    lane = &lane[1..];
-                }
-                out_vec.extend_from_slice(lane);
-            }
-        }
-
-        // If we had padding, pop the last element.
-        if out_vec.last() == Some(&u32::MAX) {
-            assert!(padding > 0);
-            out_vec.pop();
-            if SUPER {
-                idx_vec.pop();
-            }
-        }
-    })
+        },
+    )
 }

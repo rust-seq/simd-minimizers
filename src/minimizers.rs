@@ -11,7 +11,7 @@ use super::{
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
 use itertools::{izip, Itertools};
-use packed_seq::{ChunkIt, Delay, PaddedIt, Seq};
+use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::SeqHasher;
 use wide::u32x8;
 
@@ -31,6 +31,7 @@ pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl SeqHasher) -> usize {
 /// `Itertools::dedup()` to obtain the distinct positions of the minimizers.
 ///
 /// Prefer `minimizer_simd_it` that internally used SIMD, or `minimizer_par_it` if it works for you.
+#[inline(always)]
 pub fn minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
@@ -40,13 +41,14 @@ pub fn minimizers_seq_scalar<'s>(
     let len = kmer_hashes.len();
     kmer_hashes
         .map(sliding_min_mapper_scalar::<true>(w, len))
-        .dropping(w - 1)
+        .advance(w - 1)
 }
 
 /// Split the windows of the sequence into 8 chunks of equal length ~len/8.
 /// Then return the positions of the minimizers of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 // TODO: Take a hash function as argument.
+#[inline(always)]
 pub fn minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
@@ -56,7 +58,7 @@ pub fn minimizers_seq_simd<'s>(
     let len = kmer_hashes.it.len();
     kmer_hashes
         .map(sliding_min_mapper_simd::<true>(w, len))
-        .dropping(w - 1)
+        .advance(w - 1)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +66,7 @@ pub fn minimizers_seq_simd<'s>(
 // The minimizers above can take a canonical hash, but do not correctly break ties.
 // Below we fix that.
 
+#[inline(always)]
 pub fn canonical_minimizers_seq_scalar<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
@@ -103,19 +106,21 @@ pub fn canonical_minimizers_seq_scalar<'s>(
         sliding_min_mapper(hash);
     }
 
-    izip!(a, rh, rc).map(move |(a, rh, rc)| {
-        let hash = hash_mapper((a, rh));
-        let canonical = canonical_mapper((a, rc));
-        let (left, right) = sliding_min_mapper(hash);
-        if canonical {
-            left
-        } else {
-            right
-        }
-    })
+    izip!(a, rh, rc).map(
+        #[inline(always)]
+        move |(a, rh, rc)| {
+            let hash = hash_mapper((a, rh));
+            let canonical = canonical_mapper((a, rc));
+            let (left, right) = sliding_min_mapper(hash);
+            // Assigning to x ensures we get a cmov here.
+            let x = if canonical { left } else { right };
+            x
+        },
+    )
 }
 
 /// Use canonical NtHash, and keep both leftmost and rightmost minima.
+#[inline(always)]
 pub fn canonical_minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
     hasher: &impl SeqHasher,
@@ -152,5 +157,5 @@ pub fn canonical_minimizers_seq_simd<'s>(
             let (lmin, rmin) = sliding_min_mapper(hash);
             unsafe { std::mem::transmute::<_, u32x8>(canonical) }.blend(lmin, rmin)
         })
-        .dropping(w - 1)
+        .advance(w - 1)
 }

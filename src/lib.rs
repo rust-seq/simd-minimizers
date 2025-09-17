@@ -148,14 +148,14 @@
     )
 )]
 
-// Private modules.
-mod intrinsics;
-
-// Re-exported modules.
 mod canonical;
-mod collect;
+pub mod collect;
 mod minimizers;
 mod sliding_min;
+mod intrinsics {
+    mod dedup;
+    pub use dedup::{append_unique_vals, append_unique_vals_2};
+}
 
 #[cfg(test)]
 mod test;
@@ -164,9 +164,6 @@ mod test;
 pub mod private {
     pub mod canonical {
         pub use crate::canonical::*;
-    }
-    pub mod collect {
-        pub use crate::collect::*;
     }
     pub mod minimizers {
         pub use crate::minimizers::*;
@@ -177,12 +174,12 @@ pub mod private {
     pub use packed_seq::u32x8 as S;
 }
 
+use collect::CollectAndDedup;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
 /// Re-export of the `seq-hash` crate.
 pub use seq_hash;
 
-use collect::{collect_and_dedup_into, collect_and_dedup_with_index_into};
 use itertools::Itertools;
 use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
@@ -209,8 +206,7 @@ pub fn minimizer_positions<'s>(
     out_vec: &mut Vec<u32>,
 ) {
     CACHE.with_borrow_mut(|cache| {
-        let padded_it = minimizers_seq_simd(seq, hasher, w, cache);
-        collect_and_dedup_into(padded_it, out_vec);
+        minimizers_seq_simd(seq, hasher, w, cache).collect_and_dedup_into(out_vec)
     })
 }
 
@@ -226,8 +222,7 @@ pub fn canonical_minimizer_positions<'s>(
     out_vec: &mut Vec<u32>,
 ) {
     CACHE.with_borrow_mut(|cache| {
-        let padded_it = canonical_minimizers_seq_simd(seq, hasher, w, cache);
-        collect_and_dedup_into(padded_it, out_vec);
+        canonical_minimizers_seq_simd(seq, hasher, w, cache).collect_and_dedup_into(out_vec)
     })
 }
 
@@ -242,8 +237,8 @@ pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     sk_pos_vec: &mut Vec<u32>,
 ) {
     CACHE.with_borrow_mut(|cache| {
-        let padded_it = minimizers_seq_simd(seq, hasher, w, cache);
-        collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+        minimizers_seq_simd(seq, hasher, w, cache)
+            .collect_and_dedup_with_index_into(min_pos_vec, sk_pos_vec)
     })
 }
 
@@ -260,8 +255,8 @@ pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
     sk_pos_vec: &mut Vec<u32>,
 ) {
     CACHE.with_borrow_mut(|cache| {
-        let padded_it = canonical_minimizers_seq_simd(seq, hasher, w, cache);
-        collect_and_dedup_with_index_into(padded_it, min_pos_vec, sk_pos_vec);
+        canonical_minimizers_seq_simd(seq, hasher, w, cache)
+            .collect_and_dedup_with_index_into(min_pos_vec, sk_pos_vec);
     })
 }
 

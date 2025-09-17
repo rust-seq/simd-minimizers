@@ -6,14 +6,7 @@ use itertools::Itertools;
 use packed_seq::{PackedSeqVec, SeqVec};
 use seq_hash::SeqHasher;
 use simd_minimizers::{
-    canonical_minimizer_positions, minimizer_positions,
-    private::{
-        collect::{collect_and_dedup_with_index_into, collect_into},
-        minimizers::*,
-        S,
-    },
-    seq_hash::NtHasher,
-    Cache,
+    canonical_minimizer_positions, collect::CollectAndDedup, minimizer_positions, private::{minimizers::*, S}, seq_hash::NtHasher, Cache
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};
@@ -405,8 +398,7 @@ fn simd_minimizer(c: &mut Criterion) {
             let mut vec = Vec::new();
             let hasher = NtHasher::<false>::new(k);
             b.iter(|| {
-                let head_tail = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
-                collect_into(head_tail, &mut vec);
+                minimizers_seq_simd(packed_seq, &hasher, w, &mut cache).collect_into(&mut vec);
                 black_box(&mut vec).clear();
             });
         });
@@ -426,8 +418,8 @@ fn simd_minimizer(c: &mut Criterion) {
                 let mut vec2 = Vec::new();
                 let hasher = NtHasher::<false>::new(k);
                 b.iter(|| {
-                    let head_tail = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
-                    collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
+                    minimizers_seq_simd(packed_seq, &hasher, w, &mut cache)
+                        .collect_and_dedup_with_index_into(&mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                     black_box(&mut vec2).clear();
                 });
@@ -457,9 +449,8 @@ fn simd_minimizer(c: &mut Criterion) {
                 let mut vec2 = Vec::new();
                 let hasher = NtHasher::<true>::new(k);
                 b.iter(|| {
-                    let head_tail =
-                        canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut cache);
-                    collect_and_dedup_with_index_into(head_tail, &mut vec, &mut vec2);
+                    canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut cache)
+                        .collect_and_dedup_with_index_into(&mut vec, &mut vec2);
                     black_box(&mut vec).clear();
                 })
             },

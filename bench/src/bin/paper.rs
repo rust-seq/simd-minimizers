@@ -2,8 +2,9 @@ use itertools::Itertools;
 use packed_seq::{unpack_base, AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec};
 use rand::{random_range, Rng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use seq_hash::{MulHasher, NtHasher, SeqHasher};
+use seq_hash::{KmerHasher, MulHasher, NtHasher};
 use simd_minimizers::{
+    collect::CollectAndDedup,
     canonical_minimizer_positions, minimizer_positions,
     private::*,
     scalar::{canonical_minimizer_positions_scalar, minimizer_positions_scalar},
@@ -140,25 +141,11 @@ fn plot() {
             let v2 = &mut vec![];
             // warmup
             {
-                collect::collect_into(
-                    minimizers::canonical_minimizers_seq_simd(
-                        packed_seq,
-                        &can_hasher,
-                        w,
-                        &mut cache,
-                    ),
-                    v2,
-                );
+                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, &mut cache)
+                    .collect_into(v2);
                 v2.clear();
-                collect::collect_and_dedup_into(
-                    minimizers::canonical_minimizers_seq_simd(
-                        packed_seq,
-                        &can_hasher,
-                        w,
-                        &mut cache,
-                    ),
-                    v2,
-                );
+                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, &mut cache)
+                    .collect_and_dedup_into(v2);
                 v2.clear();
             }
 
@@ -227,15 +214,11 @@ fn bench_minimizers(w: usize, k: usize) {
         v.extend(packed_seq.par_iter_bp(k + w - 1).it);
         v.clear();
 
-        collect::collect_into(
-            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
-            v2,
-        );
+        minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache)
+            .collect_into(v2);
         v2.clear();
-        collect::collect_and_dedup_into(
-            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
-            v2,
-        );
+        minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache)
+            .collect_into(v2);
         v2.clear();
     }
 
@@ -281,10 +264,7 @@ fn bench_minimizers(w: usize, k: usize) {
 
         time("fwd-collect", params, || {
             v2.clear();
-            collect::collect_into(
-                minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w, cache),
-                v2,
-            )
+            minimizers::minimizers_seq_simd(packed_seq, &fwd_hasher, w, cache).collect_into(v2)
         });
         time("fwd-dedup", params, || {
             v2.clear();
@@ -302,10 +282,8 @@ fn bench_minimizers(w: usize, k: usize) {
 
         time("canonical-collect", params, || {
             v2.clear();
-            collect::collect_into(
-                minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache),
-                v2,
-            )
+            minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, cache)
+                .collect_into(v2)
         });
         time("canonical-dedup", params, || {
             v2.clear();

@@ -1,6 +1,5 @@
 use super::*;
 use crate::minimizers::*;
-use collect::collect;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedSeq, PackedSeqVec, SeqVec};
 use rand::{random_range, Rng};
@@ -167,8 +166,8 @@ fn minimizers_fwd() {
                 minimizers_seq_scalar(ascii_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
             let scalar_packed =
                 minimizers_seq_scalar(packed_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
-            let simd_ascii = collect(minimizers_seq_simd(ascii_seq, &hasher, w, &mut cache));
-            let simd_packed = collect(minimizers_seq_simd(packed_seq, &hasher, w, &mut cache));
+            let simd_ascii = minimizers_seq_simd(ascii_seq, &hasher, w, &mut cache).collect();
+            let simd_packed = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache).collect();
 
             let len = ascii_seq.len();
             assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
@@ -196,18 +195,12 @@ fn minimizers_canonical() {
             let scalar_packed =
                 canonical_minimizers_seq_scalar(packed_seq, &hasher, w, &mut Cache::default())
                     .collect::<Vec<_>>();
-            let simd_ascii = collect(canonical_minimizers_seq_simd(
-                ascii_seq,
-                &hasher,
-                w,
-                &mut Default::default(),
-            ));
-            let simd_packed = collect(canonical_minimizers_seq_simd(
-                packed_seq,
-                &hasher,
-                w,
-                &mut Default::default(),
-            ));
+            let simd_ascii =
+                canonical_minimizers_seq_simd(ascii_seq, &hasher, w, &mut Default::default())
+                    .collect();
+            let simd_packed =
+                canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut Default::default())
+                    .collect();
 
             let len = ascii_seq.len();
 

@@ -1,7 +1,6 @@
 use crate::S;
 use core::mem::transmute;
-
-const L: usize = 256 / 32;
+use packed_seq::L;
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.

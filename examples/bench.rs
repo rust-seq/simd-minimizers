@@ -55,39 +55,34 @@ fn main() {
 fn bench(w: usize, n: usize, hasher: &impl KmerHasher, canonical: bool, simd: bool) -> f32 {
     let total = 150_000_000;
     let samples = total / n;
+    let k = hasher.k();
 
     let poss = &mut vec![];
     let mut times = vec![];
     for _ in 0..samples {
         let seq = packed_seq::PackedSeqVec::random(n);
+        let seq = seq.as_slice();
         poss.clear();
         let s = std::time::Instant::now();
         if simd {
             if canonical {
-                simd_minimizers::canonical_minimizer_positions_with_hasher(
-                    seq.as_slice(),
-                    hasher,
-                    w,
-                    poss,
-                );
+                simd_minimizers::canonical_minimizers(k, w)
+                    .hasher(hasher)
+                    .run(seq, poss);
             } else {
-                simd_minimizers::minimizer_positions_with_hasher(seq.as_slice(), hasher, w, poss);
+                simd_minimizers::minimizers(k, w)
+                    .hasher(hasher)
+                    .run(seq, poss);
             }
         } else {
             if canonical {
-                simd_minimizers::scalar::canonical_minimizer_positions_scalar_with_hasher(
-                    seq.as_slice(),
-                    hasher,
-                    w,
-                    poss,
-                );
+                simd_minimizers::canonical_minimizers(k, w)
+                    .hasher(hasher)
+                    .run_scalar(seq, poss);
             } else {
-                simd_minimizers::scalar::minimizer_positions_scalar_with_hasher(
-                    seq.as_slice(),
-                    hasher,
-                    w,
-                    poss,
-                );
+                simd_minimizers::minimizers(k, w)
+                    .hasher(hasher)
+                    .run_scalar(seq, poss);
             }
         }
         times.push(s.elapsed().as_nanos());

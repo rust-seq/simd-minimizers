@@ -53,22 +53,22 @@ fn test_on_inputs(mut f: impl FnMut(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
 #[test]
 fn minimizers_fwd() {
     fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
-        let mut cache = Cache::default();
         test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
             let hasher = hasher(k);
+            let m = minimizers(k, w).hasher(&hasher);
+
             let naive = ascii_seq
                 .0
                 .windows(w + k - 1)
                 .enumerate()
                 .map(|(pos, seq)| (pos + one_minimizer(AsciiSeq(seq), &hasher)) as u32)
+                .dedup()
                 .collect::<Vec<_>>();
 
-            let scalar_ascii =
-                minimizers_seq_scalar(ascii_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
-            let scalar_packed =
-                minimizers_seq_scalar(packed_seq, &hasher, w, &mut cache).collect::<Vec<_>>();
-            let simd_ascii = minimizers_seq_simd(ascii_seq, &hasher, w, &mut cache).collect();
-            let simd_packed = minimizers_seq_simd(packed_seq, &hasher, w, &mut cache).collect();
+            let scalar_ascii = m.run_scalar_once(ascii_seq);
+            let scalar_packed = m.run_scalar_once(packed_seq);
+            let simd_ascii = m.run_once(ascii_seq);
+            let simd_packed = m.run_once(packed_seq);
 
             let len = ascii_seq.len();
             assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
@@ -90,102 +90,12 @@ fn minimizers_canonical() {
                 return;
             }
             let hasher = hasher(k);
-            let scalar_ascii =
-                canonical_minimizers_seq_scalar(ascii_seq, &hasher, w, &mut Cache::default())
-                    .collect::<Vec<_>>();
-            let scalar_packed =
-                canonical_minimizers_seq_scalar(packed_seq, &hasher, w, &mut Cache::default())
-                    .collect::<Vec<_>>();
-            let simd_ascii =
-                canonical_minimizers_seq_simd(ascii_seq, &hasher, w, &mut Default::default())
-                    .collect();
-            let simd_packed =
-                canonical_minimizers_seq_simd(packed_seq, &hasher, w, &mut Default::default())
-                    .collect();
+            let m = canonical_minimizers(k, w).hasher(&hasher);
 
-            let len = ascii_seq.len();
-
-            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-        });
-    }
-    f(|k| NtHasher::<true>::new(k));
-    f(|k| MulHasher::<true>::new(k));
-    f(|k| AntiLexHasher::<true>::new(k));
-}
-
-#[test]
-fn minimizer_positions() {
-    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
-        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-            let hasher = hasher(k);
-            let mut scalar_ascii = vec![];
-            scalar::minimizer_positions_scalar_with_hasher(
-                ascii_seq,
-                &hasher,
-                w,
-                &mut scalar_ascii,
-            );
-            let mut scalar_packed = vec![];
-            scalar::minimizer_positions_scalar_with_hasher(
-                packed_seq,
-                &hasher,
-                w,
-                &mut scalar_packed,
-            );
-            let mut simd_ascii = vec![];
-            super::minimizer_positions_with_hasher(ascii_seq, &hasher, w, &mut simd_ascii);
-            let mut simd_packed = vec![];
-            super::minimizer_positions_with_hasher(packed_seq, &hasher, w, &mut simd_packed);
-
-            let len = ascii_seq.len();
-            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
-        });
-    }
-    f(|k| NtHasher::<true>::new(k));
-    f(|k| MulHasher::<true>::new(k));
-    f(|k| AntiLexHasher::<true>::new(k));
-}
-
-#[test]
-fn canonical_minimizer_positions() {
-    fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
-        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-            if (k + w - 1) % 2 == 0 {
-                return;
-            }
-            let hasher = hasher(k);
-            let mut scalar_ascii = vec![];
-            scalar::canonical_minimizer_positions_scalar_with_hasher(
-                ascii_seq,
-                &hasher,
-                w,
-                &mut scalar_ascii,
-            );
-            let mut scalar_packed = vec![];
-            scalar::canonical_minimizer_positions_scalar_with_hasher(
-                packed_seq,
-                &hasher,
-                w,
-                &mut scalar_packed,
-            );
-            let mut simd_ascii = vec![];
-            super::canonical_minimizer_positions_with_hasher(
-                ascii_seq,
-                &hasher,
-                w,
-                &mut simd_ascii,
-            );
-            let mut simd_packed = vec![];
-            super::canonical_minimizer_positions_with_hasher(
-                packed_seq,
-                &hasher,
-                w,
-                &mut simd_packed,
-            );
+            let scalar_ascii = m.run_scalar_once(ascii_seq);
+            let scalar_packed = m.run_scalar_once(packed_seq);
+            let simd_ascii = m.run_once(ascii_seq);
+            let simd_packed = m.run_once(packed_seq);
 
             let len = ascii_seq.len();
             assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
@@ -207,27 +117,27 @@ fn canonical_minimizer_positions_and_values() {
         if (k + w - 1) % 2 == 0 {
             return;
         }
+        let m = canonical_minimizers(k, w);
 
         let packed_seq_rc = packed_seq.to_revcomp();
         let packed_seq_rc = packed_seq_rc.as_slice();
 
         let mut fwd_positions = vec![];
-        super::canonical_minimizer_positions(packed_seq, k, w, &mut fwd_positions);
         let mut rc_positions = vec![];
-        super::canonical_minimizer_positions(packed_seq_rc, k, w, &mut rc_positions);
+        let fwd_values = m
+            .run(packed_seq, &mut fwd_positions)
+            .values_u64()
+            .collect_vec();
+        let mut rc_values = m
+            .run(packed_seq_rc, &mut rc_positions)
+            .values_u64()
+            .collect_vec();
 
         // Check that positions are symmetric.
         let len = ascii_seq.len();
         for (&x, &y) in fwd_positions.iter().zip(rc_positions.iter().rev()) {
             assert_eq!((x + y) as usize, len - k, "k={k}, w={w}, fwd={x}, rc={y}");
         }
-
-        // Extract canonical minimizer values.
-        let fwd_values: Vec<_> =
-            super::iter_canonical_minimizer_values(packed_seq, k, &fwd_positions).collect();
-
-        let mut rc_values: Vec<_> =
-            super::iter_canonical_minimizer_values(packed_seq_rc, k, &rc_positions).collect();
 
         // Check that values are the same.
         rc_values.reverse();
@@ -243,30 +153,24 @@ fn canonical_minimizer_positions_and_values() {
 #[test]
 fn minimizer_and_superkmer_positions() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        let scalar_ascii = &mut vec![];
-        let scalar_ascii_skmer = &mut vec![];
-        scalar::minimizer_and_superkmer_positions_scalar(
-            ascii_seq,
-            k,
-            w,
-            scalar_ascii,
-            scalar_ascii_skmer,
-        );
-        let scalar_packed = &mut vec![];
-        let scalar_packed_skmer = &mut vec![];
-        scalar::minimizer_and_superkmer_positions_scalar(
-            packed_seq,
-            k,
-            w,
-            scalar_packed,
-            scalar_packed_skmer,
-        );
-        let simd_ascii = &mut vec![];
-        let simd_ascii_skmer = &mut vec![];
-        super::minimizer_and_superkmer_positions(ascii_seq, k, w, simd_ascii, simd_ascii_skmer);
-        let simd_packed = &mut vec![];
-        let simd_packed_skmer = &mut vec![];
-        super::minimizer_and_superkmer_positions(packed_seq, k, w, simd_packed, simd_packed_skmer);
+        let m = minimizers(k, w);
+
+        let mut scalar_ascii = vec![];
+        let mut scalar_ascii_skmer = vec![];
+        m.super_kmers(&mut scalar_ascii_skmer)
+            .run_scalar(ascii_seq, &mut scalar_ascii);
+        let mut scalar_packed = vec![];
+        let mut scalar_packed_skmer = vec![];
+        m.super_kmers(&mut scalar_packed_skmer)
+            .run_scalar(packed_seq, &mut scalar_packed);
+        let mut simd_ascii = vec![];
+        let mut simd_ascii_skmer = vec![];
+        m.super_kmers(&mut simd_ascii_skmer)
+            .run(ascii_seq, &mut simd_ascii);
+        let mut simd_packed = vec![];
+        let mut simd_packed_skmer = vec![];
+        m.super_kmers(&mut simd_packed_skmer)
+            .run(packed_seq, &mut simd_packed);
 
         let len = ascii_seq.len();
         assert_eq!(
@@ -313,42 +217,24 @@ fn canonical_minimizer_and_superkmer_positions() {
         if (k + w - 1) % 2 == 0 {
             return;
         }
+        let m = canonical_minimizers(k, w);
+
         let mut scalar_ascii = vec![];
         let mut scalar_ascii_skmer = vec![];
-        scalar::canonical_minimizer_and_superkmer_positions_scalar(
-            ascii_seq,
-            k,
-            w,
-            &mut scalar_ascii,
-            &mut scalar_ascii_skmer,
-        );
+        m.super_kmers(&mut scalar_ascii_skmer)
+            .run_scalar(ascii_seq, &mut scalar_ascii);
         let mut scalar_packed = vec![];
         let mut scalar_packed_skmer = vec![];
-        scalar::canonical_minimizer_and_superkmer_positions_scalar(
-            packed_seq,
-            k,
-            w,
-            &mut scalar_packed,
-            &mut scalar_packed_skmer,
-        );
+        m.super_kmers(&mut scalar_packed_skmer)
+            .run_scalar(packed_seq, &mut scalar_packed);
         let mut simd_ascii = vec![];
         let mut simd_ascii_skmer = vec![];
-        super::canonical_minimizer_and_superkmer_positions(
-            ascii_seq,
-            k,
-            w,
-            &mut simd_ascii,
-            &mut simd_ascii_skmer,
-        );
+        m.super_kmers(&mut simd_ascii_skmer)
+            .run(ascii_seq, &mut simd_ascii);
         let mut simd_packed = vec![];
         let mut simd_packed_skmer = vec![];
-        super::canonical_minimizer_and_superkmer_positions(
-            packed_seq,
-            k,
-            w,
-            &mut simd_packed,
-            &mut simd_packed_skmer,
-        );
+        m.super_kmers(&mut simd_packed_skmer)
+            .run(packed_seq, &mut simd_packed);
 
         let len = ascii_seq.len();
         assert_eq!(
@@ -389,6 +275,7 @@ fn canonical_minimizer_and_superkmer_positions() {
     });
 }
 
+/// Test to make sure that the builder compiles.
 fn _builder<'s>(
     seq: impl Seq<'s>,
     k: usize,
@@ -423,17 +310,16 @@ fn _builder<'s>(
     out.values_u64().sum::<u64>();
     out.values_u128().sum::<u128>();
     // reusing the minimizer
-    let m =canonical_minimizers(k, w)
-        .hasher(hasher);
+    let m = canonical_minimizers(k, w).hasher(hasher);
     for _ in 0..10 {
         m.super_kmers(sk_pos).run(seq, min_pos);
     }
 }
 
 #[test]
-fn collect_and_dedup_scalar(){
+fn collect_and_dedup_scalar() {
     let mut out = vec![];
-    collect_and_dedup_into_scalar([0,1,2,3,4,5].into_iter(), &mut out);
+    collect_and_dedup_into_scalar([0, 1, 2, 3, 4, 5].into_iter(), &mut out);
     assert_eq!(out, [0, 1, 2, 3, 4, 5]);
     let mut out = vec![];
     collect_and_dedup_into_scalar([0, 0, 1, 1, 2, 2].into_iter(), &mut out);
@@ -441,10 +327,10 @@ fn collect_and_dedup_scalar(){
 }
 
 #[test]
-fn collect_and_dedup_with_index_scalar(){
+fn collect_and_dedup_with_index_scalar() {
     let mut out = vec![];
     let mut pos = vec![];
-    collect_and_dedup_with_index_into_scalar([0,1,2,3,4,5].into_iter(), &mut out, &mut pos);
+    collect_and_dedup_with_index_into_scalar([0, 1, 2, 3, 4, 5].into_iter(), &mut out, &mut pos);
     assert_eq!(out, [0, 1, 2, 3, 4, 5]);
     assert_eq!(pos, [0, 1, 2, 3, 4, 5]);
     let mut out = vec![];

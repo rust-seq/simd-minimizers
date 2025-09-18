@@ -178,8 +178,11 @@ pub mod private {
 use collect::CollectAndDedup;
 use collect::collect_and_dedup_into_scalar;
 use collect::collect_and_dedup_with_index_into_scalar;
+use minimizers::canonical_minimizers_skip_ambiguous_windows;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
+use packed_seq::BitSeq;
+use packed_seq::PackedSeq;
 /// Re-export of the `seq-hash` crate.
 pub use seq_hash;
 
@@ -307,6 +310,35 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
                 .collect_and_dedup_into::<false>(min_pos),
             (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
                 .collect_and_dedup_into::<false>(min_pos),
+        });
+        Output {
+            k: self.k,
+            seq,
+            min_pos,
+        }
+    }
+}
+
+impl<'h, H: KmerHasher> Builder<'h, true, H, ()> {
+    pub fn run_skip_ambiguous_windows_once<'s, 'o>(&self, seq: PackedSeq<'s>, ambi: BitSeq<'s>) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run_skip_ambiguous_windows(seq, ambi, &mut min_pos);
+        min_pos
+    }
+    pub fn run_skip_ambiguous_windows<'s, 'o>(
+        &self,
+        seq: PackedSeq<'s>,
+        ambi: BitSeq<'s>,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, true, PackedSeq<'s>> {
+        let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
+        let hasher = self
+            .hasher
+            .unwrap_or_else(|| default_hasher.as_ref().unwrap());
+
+        CACHE.with_borrow_mut(|cache| {
+            canonical_minimizers_skip_ambiguous_windows(seq, ambi, hasher, self.w, cache)
+                .collect_and_dedup_into::<true>(min_pos)
         });
         Output {
             k: self.k,

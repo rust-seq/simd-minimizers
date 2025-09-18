@@ -389,6 +389,47 @@ fn canonical_minimizer_and_superkmer_positions() {
     });
 }
 
+fn _builder<'s>(
+    seq: impl Seq<'s>,
+    k: usize,
+    w: usize,
+    min_pos: &'s mut Vec<u32>,
+    sk_pos: &'s mut Vec<u32>,
+) {
+    let hasher = &<MulHasher>::new_with_seed(k, 1234);
+
+    // warning: unused
+    // minimizers(k, w);
+    // minimizers(k, w).hasher(hasher);
+
+    minimizers(k, w).run(seq, min_pos);
+    canonical_minimizers(k, w).run(seq, min_pos);
+    // with super_kmers
+    minimizers(k, w).super_kmers(sk_pos).run(seq, min_pos);
+    canonical_minimizers(k, w)
+        .super_kmers(sk_pos)
+        .run(seq, min_pos);
+    // with hasher
+    canonical_minimizers(k, w).hasher(hasher).run(seq, min_pos);
+    canonical_minimizers(k, w)
+        .hasher(hasher)
+        .super_kmers(sk_pos)
+        .run(seq, min_pos);
+    // with values
+    let out = canonical_minimizers(k, w)
+        .hasher(hasher)
+        .super_kmers(sk_pos)
+        .run(seq, min_pos);
+    out.values_u64().sum::<u64>();
+    out.values_u128().sum::<u128>();
+    // reusing the minimizer
+    let m =canonical_minimizers(k, w)
+        .hasher(hasher);
+    for _ in 0..10 {
+        m.super_kmers(sk_pos).run(seq, min_pos);
+    }
+}
+
 #[test]
 fn collect_and_dedup_scalar(){
     let mut out = vec![];

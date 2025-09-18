@@ -165,3 +165,43 @@ pub fn canonical_minimizers_seq_simd<'s>(
         canonical.blend(lmin, rmin)
     })
 }
+
+/// Use canonical NtHash, and keep both leftmost and rightmost minima.
+#[inline(always)]
+pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
+    seq: packed_seq::PackedSeq<'s>,
+    bitseq: packed_seq::BitSeq<'s>,
+    hasher: &impl KmerHasher,
+    w: usize,
+    cache: &mut Cache,
+) -> PaddedIt<impl ChunkIt<u32x8>> {
+    assert!(hasher.is_canonical());
+
+    let k = hasher.k();
+    let l = k + w - 1;
+    let mut hash_mapper = hasher.in_out_mapper_simd(seq);
+    let (c_delay, mut canonical_mapper) = canonical_mapper_simd(l);
+
+    let mut padded_it = seq
+        .par_iter_bp_delayed_2_with_factor(l, hasher.delay(), c_delay, 2)
+        .zip(bitseq.par_iter_kmer_ambiguity(l, l));
+
+    // Process first k-1 characters separately, to initialize hash values.
+    padded_it.advance_with(k - 1, |((a, rh, rc), _ambi)| {
+        hash_mapper((a, rh));
+        canonical_mapper((a, rc));
+    });
+    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), cache);
+    padded_it.advance_with(w - 1, |((a, rh, rc), _ambi)| {
+        let hash = hash_mapper((a, rh));
+        canonical_mapper((a, rc));
+        sliding_min_mapper(hash);
+    });
+
+    padded_it.map(move |((a, rh, rc), ambi)| {
+        let hash = hash_mapper((a, rh));
+        let canonical = canonical_mapper((a, rc));
+        let (lmin, rmin) = sliding_min_mapper(hash);
+        ambi.blend(u32x8::splat(u32::MAX - 1), canonical.blend(lmin, rmin))
+    })
+}

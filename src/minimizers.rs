@@ -3,14 +3,14 @@ use std::iter::zip;
 
 use crate::{
     canonical,
-    sliding_min::{sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar, Cache},
+    sliding_min::{Cache, sliding_lr_min_mapper_scalar, sliding_min_mapper_scalar},
 };
 
 use super::{
     canonical::canonical_mapper_simd,
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::KmerHasher;
 use wide::u32x8;
@@ -85,7 +85,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     let mut sliding_min_mapper = sliding_lr_min_mapper_scalar(w, seq.len(), cache);
     let (Delay(delay2), mut canonical_mapper) = canonical::canonical_mapper_scalar(k + w - 1);
 
-    assert!(delay1 <= k - 1);
+    assert!(delay1 < k);
     assert!(k - 1 <= delay2);
     assert!(delay2 == k + w - 2);
 
@@ -111,6 +111,7 @@ pub fn canonical_minimizers_seq_scalar<'s>(
 
     izip!(a, rh, rc).map(
         #[inline(always)]
+        #[allow(clippy::let_and_return)]
         move |(a, rh, rc)| {
             let hash = hash_mapper((a, rh));
             let canonical = canonical_mapper((a, rc));

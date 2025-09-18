@@ -1,4 +1,7 @@
 //! Collect (and dedup) SIMD-iterator values into a flat `Vec<u32>`.
+
+#![allow(clippy::uninit_vec)]
+
 use std::{
     array::{self, from_fn},
     cell::RefCell,
@@ -6,7 +9,7 @@ use std::{
 };
 
 use crate::S;
-use packed_seq::{intrinsics::transpose, ChunkIt, PaddedIt, L};
+use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
 use wide::u32x8;
 
 pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec: &mut Vec<u32>) {
@@ -90,7 +93,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
         out_vec: &mut Vec<u32>,
         idx_vec: &mut Vec<u32>,
     ) {
-        let PaddedIt { it, padding } = self;
+        let Self { it, padding } = self;
         CACHE.with(
             #[inline(always)]
             |v| {

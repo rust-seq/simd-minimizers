@@ -150,6 +150,8 @@
 //! simd_minimizers::canonical_minimizer_positions_with_hasher(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
 //! ```
 
+#![allow(clippy::missing_transmute_annotations)]
+
 mod canonical;
 pub mod collect;
 mod minimizers;
@@ -187,8 +189,8 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
-use packed_seq::u32x8 as S;
 use packed_seq::Seq;
+use packed_seq::u32x8 as S;
 use seq_hash::KmerHasher;
 
 pub use minimizers::one_minimizer;

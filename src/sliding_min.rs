@@ -108,11 +108,7 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(
     let mut pos_offset = 0;
 
     fn min<const LEFT: bool>(a: u32, b: u32) -> u32 {
-        if LEFT {
-            a.min(b)
-        } else {
-            a.max(b)
-        }
+        if LEFT { a.min(b) } else { a.max(b) }
     }
 
     #[inline(always)]
@@ -216,11 +212,7 @@ pub fn sliding_lr_min_mapper_scalar(
 }
 
 fn simd_min<const LEFT: bool>(a: S, b: S) -> S {
-    if LEFT {
-        a.min(b)
-    } else {
-        a.max(b)
-    }
+    if LEFT { a.min(b) } else { a.max(b) }
 }
 
 /// Mapper version, that returns a function that can be called with new inputs as needed.

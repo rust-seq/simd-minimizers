@@ -3,12 +3,12 @@ use std::mem::transmute;
 
 use crate::S;
 use packed_seq::Delay;
-use wide::{i32x8, CmpGt};
+use wide::{CmpGt, i32x8};
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
 /// Window length l=k+w-1 must be odd for this to never tie.
-pub fn canonical_mapper_scalar<'s>(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool) {
+pub fn canonical_mapper_scalar(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool) {
     assert!(
         l % 2 == 1,
         "Window length l={l} must be odd to guarantee canonicality"

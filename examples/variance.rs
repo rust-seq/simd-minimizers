@@ -16,8 +16,7 @@ fn main() {
 
         for _ in 0..samples {
             let seq = packed_seq::PackedSeqVec::random(n);
-            let poss = &mut vec![];
-            simd_minimizers::minimizer_positions(seq.as_slice(), k, w, poss);
+            let poss = simd_minimizers::minimizer_positions(seq.as_slice(), k, w);
 
             let x = poss.len();
 

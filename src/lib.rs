@@ -184,12 +184,9 @@ use collect::collect_and_dedup_into_scalar;
 use collect::collect_and_dedup_with_index_into_scalar;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
-use packed_seq::ChunkIt;
-use packed_seq::PaddedIt;
 /// Re-export of the `seq-hash` crate.
 pub use seq_hash;
 
-use itertools::Itertools;
 use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
@@ -391,316 +388,26 @@ impl<'s, 'o, const CANONICAL: bool, SEQ: Seq<'s>> Output<'o, CANONICAL, SEQ> {
     }
 }
 
-/// Deduplicated positions of all minimizers in the sequence, using SIMD.
+/// Positions of all minimizers in the sequence.
 ///
-/// Positions are appended to a reusable `out_vec` to avoid allocations.
-pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize, out_vec: &mut Vec<u32>) {
-    let hasher = NtHasher::<false>::new(k);
-    minimizer_positions_with_hasher(seq, &hasher, w, out_vec);
+/// See [`minimizers`], [`canonical_minimizers`], and [`Builder`] for more
+/// configurations supporting a custom hasher, super-kmer positions, and
+/// returning kmer-values.
+///
+/// Positions are appended to a reusable `min_pos` vector to avoid allocations.
+pub fn minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
+    minimizers(k, w).run_once(seq)
 }
 
-/// Variant of [`minimizer_positions`] that takes a custom [`seq_hash::KmerHasher`].
-pub fn minimizer_positions_with_hasher<'s>(
-    seq: impl Seq<'s>,
-    hasher: &impl KmerHasher,
-    w: usize,
-    out_vec: &mut Vec<u32>,
-) {
-    CACHE.with_borrow_mut(|cache| {
-        minimizers_seq_simd(seq, hasher, w, cache).collect_and_dedup_into(out_vec)
-    })
-}
-
-/// Deduplicated positions of all canonical minimizers in the sequence, using SIMD.
+/// Positions of all canonical minimizers in the sequence.
+///
+/// See [`minimizers`], [`canonical_minimizers`], and [`Builder`] for more
+/// configurations supporting a custom hasher, super-kmer positions, and
+/// returning kmer-values.
 ///
 /// `l=w+k-1` must be odd to determine the strand of each window.
 ///
-/// Positions are appended to a reusable `out_vec` to avoid allocations.
-pub fn canonical_minimizer_positions<'s>(
-    seq: impl Seq<'s>,
-    k: usize,
-    w: usize,
-    out_vec: &mut Vec<u32>,
-) {
-    let hasher = NtHasher::<true>::new(k);
-    canonical_minimizer_positions_with_hasher(seq, &hasher, w, out_vec);
-}
-
-/// Variant of [`canonical_minimizer_positions`] that takes a custom [`seq_hash::KmerHasher`].
-pub fn canonical_minimizer_positions_with_hasher<'s>(
-    seq: impl Seq<'s>,
-    hasher: &impl KmerHasher,
-    w: usize,
-    out_vec: &mut Vec<u32>,
-) {
-    CACHE.with_borrow_mut(|cache| {
-        canonical_minimizers_seq_simd(seq, hasher, w, cache).collect_and_dedup_into(out_vec)
-    })
-}
-
-/// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
-///
-/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
-pub fn minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    w: usize,
-    min_pos_vec: &mut Vec<u32>,
-    sk_pos_vec: &mut Vec<u32>,
-) {
-    let hasher = NtHasher::<false>::new(k);
-    minimizer_and_superkmer_positions_with_hasher(seq, &hasher, w, min_pos_vec, sk_pos_vec);
-}
-
-/// Variant of [`minimizer_and_superkmer_positions`] that takes a custom [`seq_hash::KmerHasher`].
-pub fn minimizer_and_superkmer_positions_with_hasher<'s, S: Seq<'s>>(
-    seq: S,
-    hasher: &impl KmerHasher,
-    w: usize,
-    min_pos_vec: &mut Vec<u32>,
-    sk_pos_vec: &mut Vec<u32>,
-) {
-    CACHE.with_borrow_mut(|cache| {
-        minimizers_seq_simd(seq, hasher, w, cache)
-            .collect_and_dedup_with_index_into(min_pos_vec, sk_pos_vec)
-    })
-}
-
-/// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers, using SIMD.
-///
-/// `l=w+k-1` must be odd to determine the strand of each window.
-///
-/// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
-pub fn canonical_minimizer_and_superkmer_positions<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    w: usize,
-    min_pos_vec: &mut Vec<u32>,
-    sk_pos_vec: &mut Vec<u32>,
-) {
-    let hasher = NtHasher::<true>::new(k);
-    canonical_minimizer_and_superkmer_positions_with_hasher(
-        seq,
-        &hasher,
-        w,
-        min_pos_vec,
-        sk_pos_vec,
-    );
-}
-
-/// Variant of [`canonical_minimizer_and_superkmer_positions`] that takes a custom [`seq_hash::KmerHasher`].
-pub fn canonical_minimizer_and_superkmer_positions_with_hasher<'s, S: Seq<'s>>(
-    seq: S,
-    hasher: &impl KmerHasher,
-    w: usize,
-    min_pos_vec: &mut Vec<u32>,
-    sk_pos_vec: &mut Vec<u32>,
-) {
-    CACHE.with_borrow_mut(|cache| {
-        canonical_minimizers_seq_simd(seq, hasher, w, cache)
-            .collect_and_dedup_with_index_into(min_pos_vec, sk_pos_vec);
-    })
-}
-
-/// Given a sequence and a list of positions, iterate over the k-mer values at those positions.
-#[inline(always)]
-pub fn iter_minimizer_values<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u64> + Clone {
-    positions
-        .iter()
-        .map(move |&pos| seq.read_kmer(k, pos as usize))
-}
-
-/// Given a sequence and a list of positions, iterate over the *canonical* k-mer values at those positions.
-///
-/// Canonical k-mers are defined as the *minimum* of the k-mer and its reverse complement.
-/// Note that this also works for even `k`, but typically one would want `k` to be odd.
-#[inline(always)]
-pub fn iter_canonical_minimizer_values<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u64> + Clone {
-    positions.iter().map(move |&pos| {
-        let a = seq.read_kmer(k, pos as usize);
-        let b = seq.read_revcomp_kmer(k, pos as usize);
-        core::cmp::min(a, b)
-    })
-}
-
-/// Given a sequence and a list of positions, iterate over the k-mer values at those positions.
-#[inline(always)]
-pub fn iter_minimizer_values_u128<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u128> + Clone {
-    positions
-        .iter()
-        .map(move |&pos| seq.read_kmer_u128(k, pos as usize))
-}
-
-/// Given a sequence and a list of positions, iterate over the *canonical* k-mer values at those positions.
-///
-/// Canonical k-mers are defined as the *minimum* of the k-mer and its reverse complement.
-/// Note that this also works for even `k`, but typically one would want `k` to be odd.
-#[inline(always)]
-pub fn iter_canonical_minimizer_values_u128<'s, S: Seq<'s>>(
-    seq: S,
-    k: usize,
-    positions: &'s [u32],
-) -> impl ExactSizeIterator<Item = u128> + Clone {
-    positions.iter().map(move |&pos| {
-        let a = seq.read_kmer_u128(k, pos as usize);
-        let b = seq.read_revcomp_kmer_u128(k, pos as usize);
-        core::cmp::min(a, b)
-    })
-}
-
-/// Scalar variants that are nearly always slower.
-///
-/// Can be used for testing and debugging.
-pub mod scalar {
-    use crate::collect::collect_and_dedup_into_scalar;
-
-    use super::*;
-
-    /// Deduplicated positions of all minimizers in the sequence.
-    /// This scalar version can be faster for short sequences.
-    ///
-    /// Positions are appended to a reusable `out_vec` to avoid allocations.
-    pub fn minimizer_positions_scalar<'s, S: Seq<'s>>(
-        seq: S,
-        k: usize,
-        w: usize,
-        out_vec: &mut Vec<u32>,
-    ) {
-        let hasher = NtHasher::<false>::new(k);
-        minimizer_positions_scalar_with_hasher(seq, &hasher, w, out_vec);
-    }
-    /// Variant of [`minimizer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
-    pub fn minimizer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
-        seq: S,
-        hasher: &impl KmerHasher,
-        w: usize,
-        out_vec: &mut Vec<u32>,
-    ) {
-        CACHE.with_borrow_mut(|cache| {
-            collect_and_dedup_into_scalar(minimizers_seq_scalar(seq, hasher, w, cache), out_vec);
-        })
-    }
-
-    /// Deduplicated positions of all canonical minimizers in the sequence.
-    /// This scalar version can be faster for short sequences.
-    ///
-    /// `l=w+k-1` must be odd to determine the strand of each window.
-    ///
-    /// Positions are appended to a reusable `out_vec` to avoid allocations.
-    pub fn canonical_minimizer_positions_scalar<'s, S: Seq<'s>>(
-        seq: S,
-        k: usize,
-        w: usize,
-        out_vec: &mut Vec<u32>,
-    ) {
-        let hasher = NtHasher::<true>::new(k);
-        canonical_minimizer_positions_scalar_with_hasher(seq, &hasher, w, out_vec);
-    }
-    /// Variant of [`canonical_minimizer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
-    pub fn canonical_minimizer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
-        seq: S,
-        hasher: &impl KmerHasher,
-        w: usize,
-        out_vec: &mut Vec<u32>,
-    ) {
-        CACHE.with_borrow_mut(|cache| {
-            collect_and_dedup_into_scalar(
-                canonical_minimizers_seq_scalar(seq, hasher, w, cache),
-                out_vec,
-            );
-        })
-    }
-
-    /// Deduplicated positions of all minimizers in the sequence with starting positions of the corresponding super-k-mers.
-    /// This scalar version can be faster for short sequences.
-    ///
-    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
-    pub fn minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
-        seq: S,
-        k: usize,
-        w: usize,
-        min_pos_vec: &mut Vec<u32>,
-        sk_pos_vec: &mut Vec<u32>,
-    ) {
-        let hasher = NtHasher::<false>::new(k);
-        minimizer_and_superkmer_positions_scalar_with_hasher(
-            seq,
-            &hasher,
-            w,
-            min_pos_vec,
-            sk_pos_vec,
-        );
-    }
-    /// Variant of [`minimizer_and_superkmer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
-    pub fn minimizer_and_superkmer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
-        seq: S,
-        hasher: &impl KmerHasher,
-        w: usize,
-        min_pos_vec: &mut Vec<u32>,
-        sk_pos_vec: &mut Vec<u32>,
-    ) {
-        CACHE.with_borrow_mut(|cache| {
-            let (sk_pos, min_pos): (Vec<_>, Vec<_>) = minimizers_seq_scalar(seq, hasher, w, cache)
-                .enumerate()
-                .dedup_by(|x, y| x.1 == y.1)
-                .map(|(x, y)| (x as u32, y))
-                .unzip();
-            min_pos_vec.extend(min_pos);
-            sk_pos_vec.extend(sk_pos);
-        })
-    }
-
-    /// Deduplicated positions of all canonical minimizers in the sequence with starting positions of the corresponding super-k-mers.
-    /// This scalar version can be faster for short sequences.
-    ///
-    /// `l=w+k-1` must be odd to determine the strand of each window.
-    ///
-    /// Positions are appended to reusable `min_pos_vec` and `sk_pos_vec` to avoid allocations.
-    pub fn canonical_minimizer_and_superkmer_positions_scalar<'s, S: Seq<'s>>(
-        seq: S,
-        k: usize,
-        w: usize,
-        min_pos_vec: &mut Vec<u32>,
-        sk_pos_vec: &mut Vec<u32>,
-    ) {
-        let hasher = NtHasher::<true>::new(k);
-        canonical_minimizer_and_superkmer_positions_scalar_with_hasher(
-            seq,
-            &hasher,
-            w,
-            min_pos_vec,
-            sk_pos_vec,
-        );
-    }
-    /// Variant of [`canonical_minimizer_and_superkmer_positions_scalar`] that takes a custom [`seq_hash::KmerHasher`].
-    pub fn canonical_minimizer_and_superkmer_positions_scalar_with_hasher<'s, S: Seq<'s>>(
-        seq: S,
-        hasher: &impl KmerHasher,
-        w: usize,
-        min_pos_vec: &mut Vec<u32>,
-        sk_pos_vec: &mut Vec<u32>,
-    ) {
-        CACHE.with_borrow_mut(|cache| {
-            let (sk_pos, min_pos): (Vec<_>, Vec<_>) =
-                canonical_minimizers_seq_scalar(seq, hasher, w, cache)
-                    .enumerate()
-                    .dedup_by(|x, y| x.1 == y.1)
-                    .map(|(x, y)| (x as u32, y))
-                    .unzip();
-            min_pos_vec.extend(min_pos);
-            sk_pos_vec.extend(sk_pos);
-        })
-    }
+/// Positions are appended to a reusable `min_pos` vector to avoid allocations.
+pub fn canonical_minimizer_positions<'s>(seq: impl Seq<'s>, k: usize, w: usize) -> Vec<u32> {
+    canonical_minimizers(k, w).run_once(seq)
 }

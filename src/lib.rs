@@ -1,3 +1,4 @@
+#![feature(type_changing_struct_update)]
 //! A library to quickly compute (canonical) minimizers of DNA and text sequences.
 //!
 //! The main functions are:
@@ -179,8 +180,12 @@ pub mod private {
 }
 
 use collect::CollectAndDedup;
+use collect::collect_and_dedup_into_scalar;
+use collect::collect_and_dedup_with_index_into_scalar;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
+use packed_seq::ChunkIt;
+use packed_seq::PaddedIt;
 /// Re-export of the `seq-hash` crate.
 pub use seq_hash;
 
@@ -199,6 +204,191 @@ pub use sliding_min::Cache;
 
 thread_local! {
     static CACHE: std::cell::RefCell<Cache> = std::cell::RefCell::new(Cache::default());
+}
+
+pub struct Builder<'h, const CANONICAL: bool, H: KmerHasher, SkPos> {
+    k: usize,
+    w: usize,
+    hasher: Option<&'h H>,
+    sk_pos: SkPos,
+}
+
+pub struct Output<'o, const CANONICAL: bool, S> {
+    k: usize,
+    seq: S,
+    min_pos: &'o Vec<u32>,
+}
+
+#[must_use]
+pub fn minimizers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, ()> {
+    Builder {
+        k,
+        w,
+        hasher: None,
+        sk_pos: (),
+    }
+}
+
+#[must_use]
+pub fn canonical_minimizers(k: usize, w: usize) -> Builder<'static, true, NtHasher<true>, ()> {
+    Builder {
+        k,
+        w,
+        hasher: None,
+        sk_pos: (),
+    }
+}
+
+impl<const CANONICAL: bool> Builder<'static, CANONICAL, NtHasher<CANONICAL>, ()> {
+    #[must_use]
+    pub fn hasher<'h, H2: KmerHasher>(&self, hasher: &'h H2) -> Builder<'h, CANONICAL, H2, ()> {
+        Builder {
+            hasher: Some(hasher),
+            ..*self
+        }
+    }
+}
+impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
+    #[must_use]
+    pub fn super_kmers<'o2>(
+        &self,
+        sk_pos: &'o2 mut Vec<u32>,
+    ) -> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>> {
+        Builder {
+            sk_pos: sk_pos,
+            ..*self
+        }
+    }
+}
+
+/// Without-superkmer version
+impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
+    pub fn run_scalar<'s, 'o, SEQ: Seq<'s>>(
+        &self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        self.run_impl::<false, _>(seq, min_pos)
+    }
+
+    pub fn run<'s, 'o, SEQ: Seq<'s>>(
+        &self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        self.run_impl::<true, _>(seq, min_pos)
+    }
+
+    fn run_impl<'s, 'o, const SIMD: bool, SEQ: Seq<'s>>(
+        &self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
+        let hasher = self.hasher.unwrap_or_else(|| default_hasher.as_ref().unwrap());
+
+        CACHE.with_borrow_mut(|cache| match (SIMD, CANONICAL) {
+            (false, false) => collect_and_dedup_into_scalar(
+                minimizers_seq_scalar(seq, hasher, self.w, cache),
+                min_pos,
+            ),
+            (false, true) => collect_and_dedup_into_scalar(
+                canonical_minimizers_seq_scalar(seq, hasher, self.w, cache),
+                min_pos,
+            ),
+            (true, false) => {
+                minimizers_seq_simd(seq, hasher, self.w, cache).collect_and_dedup_into(min_pos)
+            }
+            (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_into(min_pos),
+        });
+        Output {
+            k: self.k,
+            seq,
+            min_pos,
+        }
+    }
+}
+
+/// With-superkmer version
+impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>> {
+    pub fn run_scalar<'s, 'o, SEQ: Seq<'s>>(
+        self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        self.run_impl::<false, _>(seq, min_pos)
+    }
+
+    pub fn run<'s, 'o, SEQ: Seq<'s>>(
+        self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        self.run_impl::<true, _>(seq, min_pos)
+    }
+
+    fn run_impl<'s, 'o, const SIMD: bool, SEQ: Seq<'s>>(
+        self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
+        let hasher = self
+            .hasher
+            .unwrap_or_else(|| default_hasher.as_ref().unwrap());
+
+        CACHE.with_borrow_mut(|cache| match (SIMD, CANONICAL) {
+            (false, false) => collect_and_dedup_with_index_into_scalar(
+                minimizers_seq_scalar(seq, hasher, self.w, cache),
+                min_pos,
+                self.sk_pos,
+            ),
+            (false, true) => collect_and_dedup_with_index_into_scalar(
+                canonical_minimizers_seq_scalar(seq, hasher, self.w, cache),
+                min_pos,
+                self.sk_pos,
+            ),
+            (true, false) => minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
+            (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
+        });
+        Output {
+            k: self.k,
+            seq,
+            min_pos,
+        }
+    }
+}
+
+impl<'s, 'o, const CANONICAL: bool, SEQ: Seq<'s>> Output<'o, CANONICAL, SEQ> {
+    /// (Canonical) u64 kmer-values associated with all minimizer positions.
+    #[must_use]
+    pub fn values_u64(&self) -> impl ExactSizeIterator<Item = u64> {
+        self.min_pos.iter().map(move |&pos| {
+            if CANONICAL {
+                let a = self.seq.read_kmer(self.k, pos as usize);
+                let b = self.seq.read_revcomp_kmer(self.k, pos as usize);
+                core::cmp::min(a, b)
+            } else {
+                self.seq.read_kmer(self.k, pos as usize)
+            }
+        })
+    }
+    /// (Canonical) u128 kmer-values associated with all minimizer positions.
+    #[must_use]
+    pub fn values_u128(&self) -> impl ExactSizeIterator<Item = u128> {
+        self.min_pos.iter().map(move |&pos| {
+            if CANONICAL {
+                let a = self.seq.read_kmer_u128(self.k, pos as usize);
+                let b = self.seq.read_revcomp_kmer_u128(self.k, pos as usize);
+                core::cmp::min(a, b)
+            } else {
+                self.seq.read_kmer_u128(self.k, pos as usize)
+            }
+        })
+    }
 }
 
 /// Deduplicated positions of all minimizers in the sequence, using SIMD.

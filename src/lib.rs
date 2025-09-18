@@ -260,6 +260,18 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
 
 /// Without-superkmer version
 impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
+    pub fn run_scalar_once<'s, SEQ: Seq<'s>>(&self, seq: SEQ) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run_impl::<false, _>(seq, &mut min_pos);
+        min_pos
+    }
+
+    pub fn run_once<'s, SEQ: Seq<'s>>(&self, seq: SEQ) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run_impl::<true, _>(seq, &mut min_pos);
+        min_pos
+    }
+
     pub fn run_scalar<'s, 'o, SEQ: Seq<'s>>(
         &self,
         seq: SEQ,
@@ -282,7 +294,9 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
         min_pos: &'o mut Vec<u32>,
     ) -> Output<'o, CANONICAL, SEQ> {
         let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
-        let hasher = self.hasher.unwrap_or_else(|| default_hasher.as_ref().unwrap());
+        let hasher = self
+            .hasher
+            .unwrap_or_else(|| default_hasher.as_ref().unwrap());
 
         CACHE.with_borrow_mut(|cache| match (SIMD, CANONICAL) {
             (false, false) => collect_and_dedup_into_scalar(
@@ -309,6 +323,18 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
 
 /// With-superkmer version
 impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>> {
+    pub fn run_scalar_once<'s, SEQ: Seq<'s>>(self, seq: SEQ) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run_impl::<false, _>(seq, &mut min_pos);
+        min_pos
+    }
+
+    pub fn run_once<'s, SEQ: Seq<'s>>(self, seq: SEQ) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run_impl::<true, _>(seq, &mut min_pos);
+        min_pos
+    }
+
     pub fn run_scalar<'s, 'o, SEQ: Seq<'s>>(
         self,
         seq: SEQ,

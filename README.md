@@ -48,7 +48,7 @@ assert_eq!(minimizer_positions, vec![0, 7, 9, 15]);
 // Advanced usage with custom hasher, super-kmer positions, and minimizer values as well.
 let mut minimizer_positions = Vec::new();
 let mut super_kmers = Vec::new();
-let minimizer_values: Vec<_> = canonical_minimizers(k, w)
+let minimizer_vals: Vec<u64> = canonical_minimizers(k, w)
     .hasher(&hasher)
     .super_kmers(&mut super_kmers)
     .run(packed_seq.as_slice(), &mut minimizer_positions)

@@ -382,30 +382,42 @@ impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, &'
 }
 
 impl<'s, 'o, const CANONICAL: bool, SEQ: Seq<'s>> Output<'o, CANONICAL, SEQ> {
-    /// (Canonical) u64 kmer-values associated with all minimizer positions.
+    /// Iterator over (canonical) u64 kmer-values associated with all minimizer positions.
     #[must_use]
     pub fn values_u64(&self) -> impl ExactSizeIterator<Item = u64> {
+        self.pos_and_values_u64().map(|(_pos, val)| val)
+    }
+    /// Iterator over (canonical) u128 kmer-values associated with all minimizer positions.
+    #[must_use]
+    pub fn values_u128(&self) -> impl ExactSizeIterator<Item = u128> {
+        self.pos_and_values_u128().map(|(_pos, val)| val)
+    }
+    /// Iterator over positions and (canonical) u64 kmer-values associated with all minimizer positions.
+    #[must_use]
+    pub fn pos_and_values_u64(&self) -> impl ExactSizeIterator<Item = (u32, u64)> {
         self.min_pos.iter().map(move |&pos| {
-            if CANONICAL {
+            let val = if CANONICAL {
                 let a = self.seq.read_kmer(self.k, pos as usize);
                 let b = self.seq.read_revcomp_kmer(self.k, pos as usize);
                 core::cmp::min(a, b)
             } else {
                 self.seq.read_kmer(self.k, pos as usize)
-            }
+            };
+            (pos, val)
         })
     }
-    /// (Canonical) u128 kmer-values associated with all minimizer positions.
+    /// Iterator over positions and (canonical) u128 kmer-values associated with all minimizer positions.
     #[must_use]
-    pub fn values_u128(&self) -> impl ExactSizeIterator<Item = u128> {
+    pub fn pos_and_values_u128(&self) -> impl ExactSizeIterator<Item = (u32, u128)> {
         self.min_pos.iter().map(move |&pos| {
-            if CANONICAL {
+            let val = if CANONICAL {
                 let a = self.seq.read_kmer_u128(self.k, pos as usize);
                 let b = self.seq.read_revcomp_kmer_u128(self.k, pos as usize);
                 core::cmp::min(a, b)
             } else {
                 self.seq.read_kmer_u128(self.k, pos as usize)
-            }
+            };
+            (pos, val)
         })
     }
 }

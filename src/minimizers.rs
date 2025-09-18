@@ -93,21 +93,25 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     let mut rh = seq.iter_bp();
     let rc = seq.iter_bp();
 
-    for a in a.by_ref().take(delay1) {
+    a.by_ref().take(delay1).for_each(|a| {
         hash_mapper((a, 0));
         canonical_mapper((a, 0));
-    }
+    });
 
-    for (a, rh) in zip(a.by_ref(), rh.by_ref()).take((k - 1) - delay1) {
-        hash_mapper((a, rh));
-        canonical_mapper((a, 0));
-    }
+    zip(a.by_ref(), rh.by_ref())
+        .take((k - 1) - delay1)
+        .for_each(|(a, rh)| {
+            hash_mapper((a, rh));
+            canonical_mapper((a, 0));
+        });
 
-    for (a, rh) in zip(a.by_ref(), rh.by_ref()).take(delay2 - (k - 1)) {
-        let hash = hash_mapper((a, rh));
-        canonical_mapper((a, 0));
-        sliding_min_mapper(hash);
-    }
+    zip(a.by_ref(), rh.by_ref())
+        .take(delay2 - (k - 1))
+        .for_each(|(a, rh)| {
+            let hash = hash_mapper((a, rh));
+            canonical_mapper((a, 0));
+            sliding_min_mapper(hash);
+        });
 
     izip!(a, rh, rc).map(
         #[inline(always)]
@@ -141,46 +145,16 @@ pub fn canonical_minimizers_seq_simd<'s>(
     let mut padded_it = seq.par_iter_bp_delayed_2(l, hasher.delay(), c_delay);
 
     // Process first k-1 characters separately, to initialize hash values.
-    {
-        let hash_mapper = &mut hash_mapper;
-        let canonical_mapper = &mut canonical_mapper;
-        padded_it
-            .it
-            .by_ref()
-            .take(hasher.delay().0)
-            .for_each(move |(a, _rh, _rc)| {
-                hash_mapper((a, 0.into()));
-                canonical_mapper((a, 0.into()));
-            });
-    }
-    {
-        let hash_mapper = &mut hash_mapper;
-        let canonical_mapper = &mut canonical_mapper;
-        padded_it
-            .it
-            .by_ref()
-            .take(k - 1 - hasher.delay().0)
-            .for_each(move |(a, rh, _rc)| {
-                hash_mapper((a, rh));
-                canonical_mapper((a, 0.into()));
-            });
-    }
+    padded_it.advance_with(k-1, |(a, rh, rc)| {
+        hash_mapper((a, rh));
+        canonical_mapper((a, rc));
+    });
     let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), cache);
-    {
-        let hash_mapper = &mut hash_mapper;
-        let canonical_mapper = &mut canonical_mapper;
-        let sliding_min_mapper = &mut sliding_min_mapper;
-        padded_it
-            .it
-            .by_ref()
-            .map(move |(a, rh, rc)| {
-                let hash = hash_mapper((a, rh));
-                canonical_mapper((a, rc));
-                sliding_min_mapper(hash);
-            })
-            .take(w - 1)
-            .for_each(drop);
-    }
+    padded_it.advance_with(w - 1, |(a, rh, rc)| {
+        let hash = hash_mapper((a, rh));
+        canonical_mapper((a, rc));
+        sliding_min_mapper(hash);
+    });
 
     padded_it.map(move |(a, rh, rc)| {
         let hash = hash_mapper((a, rh));

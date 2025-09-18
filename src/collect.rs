@@ -35,6 +35,44 @@ pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec:
     });
     out_vec.truncate(idx + 1);
 }
+pub fn collect_and_dedup_with_index_into_scalar(
+    it: impl Iterator<Item = u32>,
+    out_vec: &mut Vec<u32>,
+    idx_vec: &mut Vec<u32>,
+) {
+    let mut it = it.enumerate();
+    let Some((_, mut prev)) = it.next() else {
+        out_vec.clear();
+        return;
+    };
+
+    idx_vec.reserve(2);
+    out_vec.reserve(2);
+    unsafe { idx_vec.set_len(idx_vec.capacity()) };
+    unsafe { out_vec.set_len(out_vec.capacity()) };
+
+    let mut idx = 0;
+    idx_vec[0] = 0;
+    idx_vec[1] = 1;
+    out_vec[0] = prev;
+
+    it.for_each(|(i, x)| {
+        idx += (x != prev) as usize;
+        if idx + 2 == idx_vec.len() {
+            idx_vec.reserve(2);
+            unsafe { idx_vec.set_len(idx_vec.capacity()) };
+        }
+        if idx + 2 == out_vec.len() {
+            out_vec.reserve(2);
+            unsafe { out_vec.set_len(out_vec.capacity()) };
+        }
+        *unsafe { idx_vec.get_unchecked_mut(idx + 1) } = i as u32 + 1;
+        *unsafe { out_vec.get_unchecked_mut(idx) } = x;
+        prev = x;
+    });
+    idx_vec.truncate(idx + 1);
+    out_vec.truncate(idx + 1);
+}
 
 pub trait CollectAndDedup: Sized {
     /// Convenience wrapper around `collect_and_dedup_into`.

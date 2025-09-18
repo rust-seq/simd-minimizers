@@ -388,3 +388,27 @@ fn canonical_minimizer_and_superkmer_positions() {
         );
     });
 }
+
+#[test]
+fn collect_and_dedup_scalar(){
+    let mut out = vec![];
+    collect_and_dedup_into_scalar([0,1,2,3,4,5].into_iter(), &mut out);
+    assert_eq!(out, [0, 1, 2, 3, 4, 5]);
+    let mut out = vec![];
+    collect_and_dedup_into_scalar([0, 0, 1, 1, 2, 2].into_iter(), &mut out);
+    assert_eq!(out, [0, 1, 2]);
+}
+
+#[test]
+fn collect_and_dedup_with_index_scalar(){
+    let mut out = vec![];
+    let mut pos = vec![];
+    collect_and_dedup_with_index_into_scalar([0,1,2,3,4,5].into_iter(), &mut out, &mut pos);
+    assert_eq!(out, [0, 1, 2, 3, 4, 5]);
+    assert_eq!(pos, [0, 1, 2, 3, 4, 5]);
+    let mut out = vec![];
+    let mut pos = vec![];
+    collect_and_dedup_with_index_into_scalar([0, 0, 1, 1, 2, 2].into_iter(), &mut out, &mut pos);
+    assert_eq!(out, [0, 1, 2]);
+    assert_eq!(pos, [0, 2, 4]);
+}

@@ -160,6 +160,6 @@ pub fn canonical_minimizers_seq_simd<'s>(
         let hash = hash_mapper((a, rh));
         let canonical = canonical_mapper((a, rc));
         let (lmin, rmin) = sliding_min_mapper(hash);
-        unsafe { std::mem::transmute::<_, u32x8>(canonical) }.blend(lmin, rmin)
+        canonical.blend(lmin, rmin)
     })
 }

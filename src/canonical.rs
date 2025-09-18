@@ -3,7 +3,7 @@ use std::mem::transmute;
 
 use crate::S;
 use packed_seq::Delay;
-use wide::{CmpGt, i32x8};
+use wide::{CmpGt, i32x8, u32x8};
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
@@ -37,7 +37,7 @@ pub fn canonical_mapper_scalar(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 /// NOTE: First l-1 values are bogus.
-pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
+pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
     assert!(
         l % 2 == 1,
         "Window length l={l} must be odd to guarantee canonicality"
@@ -53,7 +53,7 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> i32x8) {
         #[inline(always)]
         move |(a, r)| {
             cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-            let out = cnt.cmp_gt(i32x8::splat(0));
+            let out = unsafe { transmute::<_, u32x8>(cnt.cmp_gt(i32x8::splat(0))) };
             cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
             out
         },

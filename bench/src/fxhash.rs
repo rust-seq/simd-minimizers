@@ -4,7 +4,7 @@ use super::*;
 use std::{
     array::from_fn,
     mem::transmute,
-    simd::{ptr::SimdConstPtr, Simd},
+    simd::{Simd, ptr::SimdConstPtr},
 };
 
 const L: usize = 8;

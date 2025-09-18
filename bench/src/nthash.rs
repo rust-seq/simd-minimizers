@@ -2,7 +2,7 @@
 use std::{
     arch::x86_64::_mm256_permutevar_ps,
     array::from_fn,
-    simd::{ptr::SimdConstPtr, Simd},
+    simd::{Simd, ptr::SimdConstPtr},
 };
 
 use super::*;

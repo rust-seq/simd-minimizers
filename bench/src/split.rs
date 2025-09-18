@@ -1,5 +1,5 @@
 use super::*;
-use std::simd::{cmp::SimdOrd, Simd};
+use std::simd::{Simd, cmp::SimdOrd};
 
 pub struct Split;
 

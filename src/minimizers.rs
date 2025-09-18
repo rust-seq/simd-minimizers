@@ -145,7 +145,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     let mut padded_it = seq.par_iter_bp_delayed_2(l, hasher.delay(), c_delay);
 
     // Process first k-1 characters separately, to initialize hash values.
-    padded_it.advance_with(k-1, |(a, rh, rc)| {
+    padded_it.advance_with(k - 1, |(a, rh, rc)| {
         hash_mapper((a, rh));
         canonical_mapper((a, rc));
     });

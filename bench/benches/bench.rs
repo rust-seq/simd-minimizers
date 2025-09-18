@@ -6,15 +6,15 @@ use itertools::Itertools;
 use packed_seq::{PackedSeqVec, SeqVec};
 use seq_hash::KmerHasher;
 use simd_minimizers::{
-    collect::CollectAndDedup,
-    private::{minimizers::*, S},
-    seq_hash::NtHasher,
     Cache,
+    collect::CollectAndDedup,
+    private::{S, minimizers::*},
+    seq_hash::NtHasher,
 };
 use simd_minimizers_bench::*;
 use std::{cell::LazyCell, hint::black_box, simd::Simd, time::Duration};
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 criterion_group!(
     name = group;

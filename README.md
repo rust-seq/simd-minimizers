@@ -41,11 +41,19 @@ let k = 5;
 let w = 7;
 let hasher = <seq_hash::NtHasher>::new(k);
 
-let mut minimizer_positions = Vec::new();
-crate::canonical_minimizer_positions(packed_seq.as_slice(), &hasher, w, &mut minimizer_positions);
+// Simple usage with default hasher, returning only positions.
+let minimizer_positions = canonical_minimizer_positions(packed_seq.as_slice(), k, w);
 assert_eq!(minimizer_positions, vec![0, 7, 9, 15]);
 
-let minimizer_values: Vec<_> = crate::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &minimizer_positions).collect();
+// Advanced usage with custom hasher, super-kmer positions, and minimizer values as well.
+let mut minimizer_positions = Vec::new();
+let mut super_kmers = Vec::new();
+let minimizer_values: Vec<_> = canonical_minimizers(k, w)
+    .hasher(&hasher)
+    .super_kmers(&mut super_kmers)
+    .run(packed_seq.as_slice(), &mut minimizer_positions)
+    .values_u64()
+    .collect();
 ```
 
 ## Benchmarks

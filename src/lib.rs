@@ -17,10 +17,10 @@
 //!
 //! ## Minimizers
 //!
-//! The code is explained in detail in our [preprint](https://doi.org/10.1101/2025.01.27.634998):
+//! The code is explained in detail in our [paper](https://doi.org/10.4230/LIPIcs.SEA.2025.20):
 //!
 //! > SimdMinimizers: Computing random minimizers, fast.
-//! > Ragnar Groot Koerkamp, Igor Martayan
+//! > Ragnar Groot Koerkamp, Igor Martayan, SEA 2025
 //!
 //! Briefly, minimizers are defined using two parameters `k` and `w`.
 //! Given a sequence of characters, all k-mers (substrings of length `k`) are hashed,
@@ -85,9 +85,8 @@
 //! let k = 5;
 //! let w = 7;
 //!
-//! let mut out_vec = Vec::new();
-//! simd_minimizers::scalar::minimizer_positions_scalar(ascii_seq, k, w, &mut out_vec);
-//! assert_eq!(out_vec, vec![4, 5, 8, 13]);
+//! let positions = simd_minimizers::minimizer_positions(ascii_seq, k, w);
+//! assert_eq!(positions, vec![4, 5, 8, 13]);
 //! ```
 //!
 //! #### SIMD `PackedSeq`
@@ -102,12 +101,11 @@
 //! let k = 5;
 //! let w = 7;
 //!
-//! let mut fwd_pos = Vec::new();
 //! // Unfortunately, `PackedSeqVec` can not `Deref` into a `PackedSeq`, so `as_slice` is needed.
-//! simd_minimizers::canonical_minimizer_positions(packed_seq.as_slice(), k, w, &mut fwd_pos);
+//! // Since we also need the values, this uses the Builder API.
+//! let mut fwd_pos = vec![];
+//! let fwd_vals: Vec<_> = simd_minimizers::canonical_minimizers(k, w).run(packed_seq.as_slice(), &mut fwd_pos).values_u64().collect();
 //! assert_eq!(fwd_pos, vec![0, 7, 9, 15]);
-//!
-//! let fwd_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(packed_seq.as_slice(), k, &fwd_pos).collect();
 //! assert_eq!(fwd_vals, vec![
 //!     // T  G  C  A  C, CACGT is rc of ACGTG at pos 0
 //!     0b10_11_01_00_01,
@@ -122,12 +120,11 @@
 //! // Check that reverse complement sequence has minimizers at 'reverse' positions.
 //! let rc_packed_seq = packed_seq.as_slice().to_revcomp();
 //! let mut rc_pos = Vec::new();
-//! simd_minimizers::canonical_minimizer_positions(rc_packed_seq.as_slice(), k, w, &mut rc_pos);
+//! let mut rc_vals: Vec<_> = simd_minimizers::canonical_minimizers(k, w).run(rc_packed_seq.as_slice(), &mut rc_pos).values_u64().collect();
 //! assert_eq!(rc_pos, vec![2, 8, 10, 17]);
 //! for (fwd, &rc) in std::iter::zip(fwd_pos, rc_pos.iter().rev()) {
 //!     assert_eq!(fwd as usize, seq.len() - k - rc as usize);
 //! }
-//! let mut rc_vals: Vec<_> = simd_minimizers::iter_canonical_minimizer_values(rc_packed_seq.as_slice(), k, &rc_pos).collect();
 //! rc_vals.reverse();
 //! assert_eq!(rc_vals, fwd_vals);
 //! ```
@@ -147,8 +144,7 @@
 //! // Canonical by default. Use `NtHasher<false>` for forward-only.
 //! let hasher = <seq_hash::NtHasher>::new_with_seed(k, seed);
 //!
-//! let mut fwd_pos = Vec::new();
-//! simd_minimizers::canonical_minimizer_positions_with_hasher(packed_seq.as_slice(), &hasher, w, &mut fwd_pos);
+//! let fwd_pos = simd_minimizers::canonical_minimizers(k, w).hasher(&hasher).run_once(packed_seq.as_slice());
 //! ```
 
 #![allow(clippy::missing_transmute_annotations)]

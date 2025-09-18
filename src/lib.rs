@@ -303,11 +303,10 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
                 canonical_minimizers_seq_scalar(seq, hasher, self.w, cache),
                 min_pos,
             ),
-            (true, false) => {
-                minimizers_seq_simd(seq, hasher, self.w, cache).collect_and_dedup_into(min_pos)
-            }
+            (true, false) => minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_into::<false>(min_pos),
             (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
-                .collect_and_dedup_into(min_pos),
+                .collect_and_dedup_into::<false>(min_pos),
         });
         Output {
             k: self.k,

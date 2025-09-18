@@ -341,6 +341,50 @@ fn collect_and_dedup_with_index_scalar() {
 }
 
 #[test]
+fn collect_and_dedup_skip_max() {
+    let x = u32::MAX - 1;
+    let v = [0, 1, 1, x, 2, 3, x, x, 4].map(S::splat);
+
+    let mut out = vec![];
+    PaddedIt {
+        it: v.iter().copied(),
+        padding: 0,
+    }
+    .collect_and_dedup_into::<false>(&mut out);
+    assert!(
+        out.starts_with(&[0, 1, x, 2, 3, x, 4, 0, 1]),
+        "out: {out:?}"
+    );
+
+    let mut out = vec![];
+    PaddedIt {
+        it: v.iter().copied(),
+        padding: 0,
+    }
+    .collect_and_dedup_into::<true>(&mut out);
+    assert!(out.starts_with(&[0, 1, 2, 3, 4, 0, 1]), "out: {out:?}");
+
+    let v = [1, x, x, x, x, x, x, 2, x, x, x, x].map(S::splat);
+
+    let mut out = vec![];
+    PaddedIt {
+        it: v.iter().copied(),
+        padding: 0,
+    }
+    .collect_and_dedup_into::<false>(&mut out);
+    assert!(out.starts_with(&[1, x, 2, x, 1, x]), "out: {out:?}");
+
+    let mut out = vec![];
+    PaddedIt {
+        it: v.iter().copied(),
+        padding: 0,
+    }
+    .collect_and_dedup_into::<true>(&mut out);
+    assert!(out.starts_with(&[1, 2, 1, 2]), "out: {out:?}");
+}
+
+#[test]
+#[allow(unused)]
 fn readme_example() {
     use packed_seq::{PackedSeqVec, SeqVec};
 

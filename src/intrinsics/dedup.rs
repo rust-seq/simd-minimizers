@@ -1,4 +1,5 @@
 use crate::S;
+use crate::minimizers::SKIPPED;
 use core::mem::transmute;
 use packed_seq::L;
 
@@ -6,14 +7,20 @@ use packed_seq::L;
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
 #[inline(always)]
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
-pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
+pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
+    old: S,
+    new: S,
+    vals: S,
+    v: &mut [u32],
+    write_idx: &mut usize,
+) {
     unsafe {
         let old = old.to_array();
         let new = new.to_array();
         let vals = vals.to_array();
         let mut prec = old[7];
         for (i, &curr) in new.iter().enumerate() {
-            if curr != prec {
+            if curr != prec && cur != SKIPPED {
                 v.as_mut_ptr().add(*write_idx).write(vals[i]);
                 *write_idx += 1;
                 prec = curr;
@@ -26,7 +33,7 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]` and `vals2` to `v2[write_idx]`.
 #[inline(always)]
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
-pub unsafe fn append_unique_vals_2(
+pub unsafe fn append_unique_vals_2<const SKIP_MAX: bool>(
     old: S,
     new: S,
     vals: S,
@@ -60,19 +67,29 @@ pub unsafe fn append_unique_vals_2(
 /// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
-pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
+pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
+    old: S,
+    new: S,
+    vals: S,
+    v: &mut [u32],
+    write_idx: &mut usize,
+) {
     unsafe {
         use core::arch::x86_64::*;
 
         let old = transmute(old);
-        let new = transmute(new);
         let vals = transmute(vals);
 
-        let recon = _mm256_blend_epi32(old, new, 0b01111111);
+        let recon = _mm256_blend_epi32(old, transmute(new), 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
-        let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
+        let vec_tmp: S = transmute(_mm256_permutevar8x32_epi32(recon, movebyone_mask));
 
-        let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
+        let mut m = vec_tmp.cmp_eq(new);
+        if SKIP_MAX {
+            // skip everything equal to prev, or equal to MAX.
+            m |= new.cmp_eq(S::splat(SKIPPED));
+        }
+        let m = _mm256_movemask_ps(transmute(m)) as usize;
         let numberofnewvalues = L - m.count_ones() as usize;
         let key = transmute(UNIQSHUF[m]);
         let val = _mm256_permutevar8x32_epi32(vals, key);
@@ -129,7 +146,13 @@ pub unsafe fn append_unique_vals_2(
 /// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
 #[inline(always)]
 #[cfg(target_feature = "neon")]
-pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_idx: &mut usize) {
+pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
+    old: S,
+    new: S,
+    vals: S,
+    v: &mut [u32],
+    write_idx: &mut usize,
+) {
     unsafe {
         use core::arch::aarch64::{vaddvq_u32, vqtbl2q_u8, vst1_u32_x4};
         use wide::u32x4;
@@ -164,7 +187,11 @@ pub unsafe fn append_unique_vals(old: S, new: S, vals: S, v: &mut [u32], write_i
         let r2 = vqtbl2q_u8(t, i2);
         let prec: S = transmute((r1, r2));
 
-        let dup = prec.cmp_eq(new);
+        let mut dup = prec.cmp_eq(new);
+        if SKIP_MAX {
+            dup |= new.cmp_eq(S::splat(SKIPPED));
+        }
+        // emulate movemask
         let (d1, d2): (u32x4, u32x4) = transmute(dup);
         let pow1 = u32x4::new([1, 2, 4, 8]);
         let pow2 = u32x4::new([16, 32, 64, 128]);
@@ -555,7 +582,7 @@ mod test {
             let start = Instant::now();
             for new in chunks {
                 unsafe {
-                    append_unique_vals(old, new, new, &mut v2, &mut write_idx);
+                    append_unique_vals::<false>(old, new, new, &mut v2, &mut write_idx);
                 }
                 old = new;
             }

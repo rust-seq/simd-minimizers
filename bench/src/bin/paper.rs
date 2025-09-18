@@ -147,7 +147,7 @@ fn plot() {
                     .collect_into(v2);
                 v2.clear();
                 minimizers::canonical_minimizers_seq_simd(packed_seq, &can_hasher, w, &mut cache)
-                    .collect_and_dedup_into(v2);
+                    .collect_and_dedup_into::<false>(v2);
                 v2.clear();
             }
 

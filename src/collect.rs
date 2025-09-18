@@ -8,7 +8,7 @@ use std::{
     mem::transmute,
 };
 
-use crate::S;
+use crate::{S, minimizers::SKIPPED};
 use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
 use wide::u32x8;
 
@@ -76,9 +76,9 @@ pub fn collect_and_dedup_with_index_into_scalar(
 
 pub trait CollectAndDedup: Sized {
     /// Convenience wrapper around `collect_and_dedup_into`.
-    fn collect_and_dedup<const SUPER: bool>(self) -> Vec<u32> {
+    fn collect_and_dedup<const SKIP_MAX: bool>(self) -> Vec<u32> {
         let mut v = vec![];
-        self.collect_and_dedup_into(&mut v);
+        self.collect_and_dedup_into::<SKIP_MAX>(&mut v);
         v
     }
 
@@ -95,8 +95,8 @@ pub trait CollectAndDedup: Sized {
     ///
     /// The output is simply the deduplicated input values.
     #[inline(always)]
-    fn collect_and_dedup_into(self, out_vec: &mut Vec<u32>) {
-        self.collect_and_dedup_into_impl::<false>(out_vec, &mut vec![]);
+    fn collect_and_dedup_into<const SKIP_MAX: bool>(self, out_vec: &mut Vec<u32>) {
+        self.collect_and_dedup_into_impl::<false, SKIP_MAX>(out_vec, &mut vec![]);
     }
 
     /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -105,7 +105,7 @@ pub trait CollectAndDedup: Sized {
     /// The deduplicated input values are written in `out_vec` and the index of the stream it first appeared, i.e., the start of its super-k-mer, is written in `idx_vec`.
     #[inline(always)]
     fn collect_and_dedup_with_index_into(self, out_vec: &mut Vec<u32>, idx_vec: &mut Vec<u32>) {
-        self.collect_and_dedup_into_impl::<true>(out_vec, idx_vec);
+        self.collect_and_dedup_into_impl::<true, false>(out_vec, idx_vec);
     }
 
     /// Collect a SIMD-iterator into a single vector, and duplicate adjacent equal elements.
@@ -113,7 +113,7 @@ pub trait CollectAndDedup: Sized {
     ///
     /// By default (when `SUPER` is false), the deduplicated input values are written in `out_vec`.
     /// When `SUPER` is true, the index of the stream in which the input value first appeared, i.e., the start of its super-k-mer, is additionale written in `idx_vec`.
-    fn collect_and_dedup_into_impl<const SUPER: bool>(
+    fn collect_and_dedup_into_impl<const SUPER: bool, const SKIP_MAX: bool>(
         self,
         out_vec: &mut Vec<u32>,
         idx_vec: &mut Vec<u32>,
@@ -126,7 +126,7 @@ thread_local! {
 
 impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
     #[inline(always)]
-    fn collect_and_dedup_into_impl<const SUPER: bool>(
+    fn collect_and_dedup_into_impl<const SUPER: bool, const SKIP_MAX: bool>(
         self,
         out_vec: &mut Vec<u32>,
         idx_vec: &mut Vec<u32>,
@@ -207,7 +207,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                                             &mut write_idx[j],
                                         );
                                     } else {
-                                        crate::intrinsics::append_unique_vals(
+                                        crate::intrinsics::append_unique_vals::<SKIP_MAX>(
                                             old[j],
                                             lane,
                                             lane,
@@ -237,7 +237,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 for j in 0..8 {
                     let lane = t[j].as_array_ref();
                     for (p, x) in lane.iter().take(k).enumerate() {
-                        if v[j].last() != Some(x) {
+                        if v[j].last() != Some(x) && (!SKIP_MAX || *x != SKIPPED) {
                             v[j].push(*x);
                             if SUPER {
                                 v2[j].push(

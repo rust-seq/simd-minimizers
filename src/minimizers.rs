@@ -15,6 +15,8 @@ use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::KmerHasher;
 use wide::u32x8;
 
+pub const SKIPPED: u32 = u32::MAX - 1;
+
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
     hasher

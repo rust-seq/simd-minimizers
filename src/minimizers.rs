@@ -183,25 +183,27 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
     let (c_delay, mut canonical_mapper) = canonical_mapper_simd(l);
 
     let mut padded_it = seq
-        .par_iter_bp_delayed_2_with_factor(l, hasher.delay(), c_delay, 2)
-        .zip(bitseq.par_iter_kmer_ambiguity(l, l));
+        .par_iter_bp_delayed_2_with_factor(l, hasher.delay(), c_delay, 2);
 
     // Process first k-1 characters separately, to initialize hash values.
-    padded_it.advance_with(k - 1, |((a, rh, rc), _ambi)| {
+    padded_it.advance_with(k - 1, |(a, rh, rc)| {
         hash_mapper((a, rh));
         canonical_mapper((a, rc));
     });
     let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), cache);
-    padded_it.advance_with(w - 1, |((a, rh, rc), _ambi)| {
+    padded_it.advance_with(w - 1, |(a, rh, rc)| {
         let hash = hash_mapper((a, rh));
         canonical_mapper((a, rc));
         sliding_min_mapper(hash);
     });
 
-    padded_it.map(move |((a, rh, rc), ambi)| {
+    // jump over the l-1 first ambiguity results
+    padded_it
+        .zip(bitseq.par_iter_kmer_ambiguity(l, l, l-1))
+        .map(move |((a, rh, rc), ambi)| {
         let hash = hash_mapper((a, rh));
         let canonical = canonical_mapper((a, rc));
         let (lmin, rmin) = sliding_min_mapper(hash);
-        ambi.blend(u32x8::splat(u32::MAX - 1), canonical.blend(lmin, rmin))
+        ambi.blend(u32x8::splat(SKIPPED), canonical.blend(lmin, rmin))
     })
 }

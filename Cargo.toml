@@ -7,12 +7,8 @@ incremental = true
 debug = true
 
 [workspace.dependencies]
-# packed-seq = "3.2.1"
-# packed-seq = {git = "https://github.com/rust-seq/packed-seq", branch="PaddedIt"}
-packed-seq.path = "../packed-seq"
-seq-hash.path = "../seq-hash"
-
-# --------------------------
+packed-seq = "4.0.0"
+seq-hash = "0.0.1"
 
 [package]
 name = "simd-minimizers"

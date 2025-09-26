@@ -44,7 +44,6 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
     );
 
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
-    // TODO: Verify that the delayed removed characters are indeed 0.
     let mut cnt = i32x8::splat(-(l as i32));
     let two = i32x8::splat(2);
 

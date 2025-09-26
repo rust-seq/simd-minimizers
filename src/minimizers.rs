@@ -50,7 +50,6 @@ pub fn minimizers_seq_scalar<'s>(
 /// Split the windows of the sequence into 8 chunks of equal length ~len/8.
 /// Then return the positions of the minimizers of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
-// TODO: Take a hash function as argument.
 #[inline(always)]
 pub fn minimizers_seq_simd<'s>(
     seq: impl Seq<'s>,
@@ -83,7 +82,6 @@ pub fn canonical_minimizers_seq_scalar<'s>(
     let k = hasher.k();
     let delay1 = hasher.delay().0;
     let mut hash_mapper = hasher.in_out_mapper_scalar(seq);
-    // TODO: Merge into a single mapper?
     let mut sliding_min_mapper = sliding_lr_min_mapper_scalar(w, seq.len(), cache);
     let (Delay(delay2), mut canonical_mapper) = canonical::canonical_mapper_scalar(k + w - 1);
 

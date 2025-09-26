@@ -1,6 +1,9 @@
 # Changelog
 
-## 2.0
+## 2.0.1
+- Drop accidental `#[feature(type-changing-struct-update)]`
+
+## 2.0.0
 - **Breaking**: Migrate to `packed-seq` `4.0` with `PaddedIt`.
 - **Breaking**: Improve simd versions for short sequences by reusing allocated buffers.
 - **Feature**: Use `seq-hash` crate to cleanly support multiple kmer hashers; add `*_with_hasher` function variants.

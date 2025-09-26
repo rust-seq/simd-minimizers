@@ -1,4 +1,3 @@
-#![feature(type_changing_struct_update)]
 //! A library to quickly compute (canonical) minimizers of DNA and text sequences.
 //!
 //! The main functions are:
@@ -239,8 +238,10 @@ impl<const CANONICAL: bool> Builder<'static, CANONICAL, NtHasher<CANONICAL>, ()>
     #[must_use]
     pub fn hasher<'h, H2: KmerHasher>(&self, hasher: &'h H2) -> Builder<'h, CANONICAL, H2, ()> {
         Builder {
+            k: self.k,
+            w: self.w,
+            sk_pos: (),
             hasher: Some(hasher),
-            ..*self
         }
     }
 }
@@ -251,8 +252,10 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
         sk_pos: &'o2 mut Vec<u32>,
     ) -> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>> {
         Builder {
+            k: self.k,
+            w: self.w,
+            hasher: self.hasher,
             sk_pos: sk_pos,
-            ..*self
         }
     }
 }

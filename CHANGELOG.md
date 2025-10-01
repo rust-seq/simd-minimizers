@@ -1,5 +1,8 @@
 # Changelog
 
+- Add `scalar` feature that forwards to `packed-seq`, to disable warnings about
+  lack of SIMD features when native compilation is not enabled.
+
 ## 2.0.1
 - Drop accidental `#[feature(type-changing-struct-update)]`
 

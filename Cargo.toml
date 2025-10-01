@@ -32,3 +32,4 @@ wide = "0.7"
 rand = "0.9"
 
 [features]
+scalar = ["packed-seq/scalar"]

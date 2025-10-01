@@ -1,12 +1,14 @@
 # Changelog
 
+## 2.1.0
+- **Breaking:**: bump `packed-seq` to `4.1` with `PackedNSeq`.
 - Add `scalar` feature that forwards to `packed-seq`, to disable warnings about
   lack of SIMD features when native compilation is not enabled.
 
-## 2.0.1
+## 2.0.1 (yanked)
 - Drop accidental `#[feature(type-changing-struct-update)]`
 
-## 2.0.0
+## 2.0.0 (yanked)
 - **Breaking**: Migrate to `packed-seq` `4.0` with `PaddedIt`.
 - **Breaking**: Improve simd versions for short sequences by reusing allocated buffers.
 - **Feature**: Use `seq-hash` crate to cleanly support multiple kmer hashers; add `*_with_hasher` function variants.

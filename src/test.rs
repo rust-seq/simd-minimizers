@@ -1,7 +1,7 @@
 use super::*;
 use crate::minimizers::*;
 use itertools::Itertools;
-use packed_seq::{AsciiSeq, AsciiSeqVec, BitSeqVec, PackedSeq, PackedSeqVec, PaddedIt, SeqVec};
+use packed_seq::{AsciiSeq, AsciiSeqVec, PackedNSeqVec, PackedSeq, PackedSeqVec, PaddedIt, SeqVec};
 use rand::{Rng, random_range};
 use seq_hash::{AntiLexHasher, MulHasher, NtHasher};
 use std::sync::LazyLock;
@@ -418,8 +418,7 @@ fn skip_ambiguous() {
     for _ in 0..len / 100 {
         ascii.seq[random_range(0..len)] = b'N';
     }
-    let packed_seq = PackedSeqVec::from_ascii(&ascii.seq);
-    let ambiguous = BitSeqVec::from_ascii(&ascii.seq);
+    let nseq = PackedNSeqVec::from_ascii(&ascii.seq);
 
     for k in 1..=64 {
         for w in 1..64 {
@@ -433,8 +432,7 @@ fn skip_ambiguous() {
 
             let mut poss0 = vec![];
             canonical_minimizers_skip_ambiguous_windows(
-                packed_seq.as_slice(),
-                ambiguous.as_slice(),
+                nseq.as_slice(),
                 hasher,
                 w,
                 &mut Default::default(),
@@ -442,8 +440,7 @@ fn skip_ambiguous() {
             .collect_into(&mut poss0);
             let mut poss1 = vec![];
             canonical_minimizers_skip_ambiguous_windows(
-                packed_seq.as_slice(),
-                ambiguous.as_slice(),
+                nseq.as_slice(),
                 hasher,
                 w,
                 &mut Default::default(),
@@ -451,21 +448,19 @@ fn skip_ambiguous() {
             .collect_and_dedup_into::<false>(&mut poss1);
             let mut poss2 = vec![];
             canonical_minimizers_skip_ambiguous_windows(
-                packed_seq.as_slice(),
-                ambiguous.as_slice(),
+                nseq.as_slice(),
                 hasher,
                 w,
                 &mut Default::default(),
             )
             .collect_and_dedup_into::<true>(&mut poss2);
 
-            let poss = canonical_minimizers(k, w)
-                .run_skip_ambiguous_windows_once(packed_seq.as_slice(), ambiguous.as_slice());
+            let poss = canonical_minimizers(k, w).run_skip_ambiguous_windows_once(nseq.as_slice());
             for pos in poss {
                 // these should be filtered out
                 assert_ne!(pos, u32::MAX - 1);
                 // check that kmer at pos does not have ambiguous bases
-                assert_eq!(ambiguous.read_kmer_u128(k, pos as usize), 0);
+                assert_eq!(nseq.ambiguous.read_kmer_u128(k, pos as usize), 0);
             }
         }
     }

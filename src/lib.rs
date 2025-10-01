@@ -180,7 +180,7 @@ use collect::collect_and_dedup_with_index_into_scalar;
 use minimizers::canonical_minimizers_skip_ambiguous_windows;
 /// Re-export of the `packed-seq` crate.
 pub use packed_seq;
-use packed_seq::BitSeq;
+use packed_seq::PackedNSeq;
 use packed_seq::PackedSeq;
 /// Re-export of the `seq-hash` crate.
 pub use seq_hash;
@@ -323,15 +323,14 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
 }
 
 impl<'h, H: KmerHasher> Builder<'h, true, H, ()> {
-    pub fn run_skip_ambiguous_windows_once<'s, 'o>(&self, seq: PackedSeq<'s>, ambi: BitSeq<'s>) -> Vec<u32> {
+    pub fn run_skip_ambiguous_windows_once<'s, 'o>(&self, nseq: PackedNSeq<'s>) -> Vec<u32> {
         let mut min_pos = vec![];
-        self.run_skip_ambiguous_windows(seq, ambi, &mut min_pos);
+        self.run_skip_ambiguous_windows(nseq, &mut min_pos);
         min_pos
     }
     pub fn run_skip_ambiguous_windows<'s, 'o>(
         &self,
-        seq: PackedSeq<'s>,
-        ambi: BitSeq<'s>,
+        nseq: PackedNSeq<'s>,
         min_pos: &'o mut Vec<u32>,
     ) -> Output<'o, true, PackedSeq<'s>> {
         let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
@@ -340,12 +339,12 @@ impl<'h, H: KmerHasher> Builder<'h, true, H, ()> {
             .unwrap_or_else(|| default_hasher.as_ref().unwrap());
 
         CACHE.with_borrow_mut(|cache| {
-            canonical_minimizers_skip_ambiguous_windows(seq, ambi, hasher, self.w, cache)
+            canonical_minimizers_skip_ambiguous_windows(nseq, hasher, self.w, cache)
                 .collect_and_dedup_into::<true>(min_pos)
         });
         Output {
             k: self.k,
-            seq,
+            seq: nseq.seq,
             min_pos,
         }
     }
@@ -429,30 +428,36 @@ impl<'s, 'o, const CANONICAL: bool, SEQ: Seq<'s>> Output<'o, CANONICAL, SEQ> {
     /// Iterator over positions and (canonical) u64 kmer-values associated with all minimizer positions.
     #[must_use]
     pub fn pos_and_values_u64(&self) -> impl ExactSizeIterator<Item = (u32, u64)> {
-        self.min_pos.iter().map(#[inline(always)] move |&pos| {
-            let val = if CANONICAL {
-                let a = self.seq.read_kmer(self.k, pos as usize);
-                let b = self.seq.read_revcomp_kmer(self.k, pos as usize);
-                core::cmp::min(a, b)
-            } else {
-                self.seq.read_kmer(self.k, pos as usize)
-            };
-            (pos, val)
-        })
+        self.min_pos.iter().map(
+            #[inline(always)]
+            move |&pos| {
+                let val = if CANONICAL {
+                    let a = self.seq.read_kmer(self.k, pos as usize);
+                    let b = self.seq.read_revcomp_kmer(self.k, pos as usize);
+                    core::cmp::min(a, b)
+                } else {
+                    self.seq.read_kmer(self.k, pos as usize)
+                };
+                (pos, val)
+            },
+        )
     }
     /// Iterator over positions and (canonical) u128 kmer-values associated with all minimizer positions.
     #[must_use]
     pub fn pos_and_values_u128(&self) -> impl ExactSizeIterator<Item = (u32, u128)> {
-        self.min_pos.iter().map(#[inline(always)] move |&pos| {
-            let val = if CANONICAL {
-                let a = self.seq.read_kmer_u128(self.k, pos as usize);
-                let b = self.seq.read_revcomp_kmer_u128(self.k, pos as usize);
-                core::cmp::min(a, b)
-            } else {
-                self.seq.read_kmer_u128(self.k, pos as usize)
-            };
-            (pos, val)
-        })
+        self.min_pos.iter().map(
+            #[inline(always)]
+            move |&pos| {
+                let val = if CANONICAL {
+                    let a = self.seq.read_kmer_u128(self.k, pos as usize);
+                    let b = self.seq.read_revcomp_kmer_u128(self.k, pos as usize);
+                    core::cmp::min(a, b)
+                } else {
+                    self.seq.read_kmer_u128(self.k, pos as usize)
+                };
+                (pos, val)
+            },
+        )
     }
 }
 

@@ -37,6 +37,7 @@ pub fn canonical_mapper_scalar(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool
 /// Then compute of each of them in parallel using SIMD,
 /// and return the remaining few using the second iterator.
 /// NOTE: First l-1 values are bogus.
+#[inline(always)]
 pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
     assert!(
         l % 2 == 1,

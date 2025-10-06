@@ -21,11 +21,18 @@ The underlying algorithm is described in the following
 ## Requirements
 
 This library supports AVX2 and NEON instruction sets.
-Make sure to set `RUSTFLAGS="-C target-cpu=native"` when compiling to use the instruction sets available on your architecture.
+Make sure to set `RUSTFLAGS="-C target-cpu=native"` when compiling to use the instruction sets available on your architecture:
 
 ``` sh
-RUSTFLAGS="-C target-cpu=native" cargo run --release
+RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
+Or set it in your project or system wide `.cargo/config.toml`:
+```toml
+rustflags = ["-C", "target-cpu=native"]
+```
+
+Enable the `-F scalar` feature flag to fall back to a scalar implementation with
+reduced performance.
 
 ## Usage example
 

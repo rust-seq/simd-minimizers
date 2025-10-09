@@ -16,6 +16,7 @@ use seq_hash::KmerHasher;
 use wide::u32x8;
 
 pub const SKIPPED: u32 = u32::MAX - 1;
+pub(crate) const SIMD_SKIPPED: u32x8 = unsafe { std::mem::transmute([SKIPPED; 8]) };
 
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
@@ -202,6 +203,6 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
             let hash = hash_mapper((a, rh));
             let canonical = canonical_mapper((a, rc));
             let (lmin, rmin) = sliding_min_mapper(hash);
-            ambi.blend(u32x8::splat(SKIPPED), canonical.blend(lmin, rmin))
+            ambi.blend(SIMD_SKIPPED, canonical.blend(lmin, rmin))
         })
 }

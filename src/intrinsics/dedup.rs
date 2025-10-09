@@ -1,7 +1,12 @@
 use crate::S;
-use crate::minimizers::SKIPPED;
+use crate::minimizers::SIMD_SKIPPED;
 use core::mem::transmute;
 use packed_seq::L;
+
+#[cfg(target_feature = "neon")]
+const OFFSET: S = unsafe { std::mem::transmute([0x03_02_01_00; 8]) };
+#[cfg(target_feature = "neon")]
+const MASK: S = unsafe { std::mem::transmute([0x04_04_04_04; 8]) };
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
@@ -87,7 +92,7 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let mut m = vec_tmp.cmp_eq(new);
         if SKIP_MAX {
             // skip everything equal to prev, or equal to MAX.
-            m |= new.cmp_eq(S::splat(SKIPPED));
+            m |= new.cmp_eq(SIMD_SKIPPED);
         }
         let m = _mm256_movemask_ps(transmute(m)) as usize;
         let numberofnewvalues = L - m.count_ones() as usize;
@@ -189,7 +194,7 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
 
         let mut dup = prec.cmp_eq(new);
         if SKIP_MAX {
-            dup |= new.cmp_eq(S::splat(SKIPPED));
+            dup |= new.cmp_eq(SIMD_SKIPPED);
         }
         // emulate movemask
         let (d1, d2): (u32x4, u32x4) = transmute(dup);
@@ -201,7 +206,7 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
 
         let numberofnewvalues = L - m.count_ones() as usize;
         let key = UNIQSHUF[m];
-        let idx = key * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
+        let idx = key * MASK + OFFSET;
         let (i1, i2) = transmute(idx);
         let t = transmute(vals);
         let r1 = vqtbl2q_u8(t, i1);
@@ -273,7 +278,7 @@ pub unsafe fn append_unique_vals_2(
 
         let numberofnewvalues = L - m.count_ones() as usize;
         let key = UNIQSHUF[m];
-        let idx = key * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
+        let idx = key * MASK + OFFSET;
         let (i1, i2) = transmute(idx);
         let t = transmute(vals);
         let r1 = vqtbl2q_u8(t, i1);

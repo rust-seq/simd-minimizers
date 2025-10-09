@@ -235,24 +235,24 @@ pub fn sliding_min_mapper_simd<const LEFT: bool>(
     let pos_mask = S::splat(0x0000_ffff);
     let max_pos = S::splat((1 << 16) - 1);
     let mut pos = S::splat(0);
-    let one = S::splat(1);
     // Sliding min is over w+k-1 characters, so chunks overlap w+k-2.
     // Thus, the true length of each lane is len-(k+w-2).
     //
     // The k-mer starting at position 0 is done after processing the char at
     // position k-1, so we compensate for that as well.
     let mut pos_offset: S = from_fn(|l| (l * len.saturating_sub(w - 1)) as u32).into();
+    let delta = S::splat((1 << 16) - 2 - w as u32);
 
     #[inline(always)]
     move |val| {
         // Make sure the position does not interfere with the hash value.
         if pos == max_pos {
             // Slow case extracted to a function to have better inlining here.
-            reset_positions_offsets(w, &mut pos, &mut prefix_min, &mut pos_offset, ring_buf);
+            reset_positions_offsets(delta, &mut pos, &mut prefix_min, &mut pos_offset, ring_buf);
         }
         // slightly faster than assigning S::splat(u32::MAX)
         let elem = (if LEFT { val } else { !val } & val_mask) | pos;
-        pos += one;
+        pos += S::ONE;
         ring_buf.push(elem);
         prefix_min = simd_min::<LEFT>(prefix_min, elem);
         // After a chunk has been filled, compute suffix minima.
@@ -284,13 +284,12 @@ fn suffix_minima<const LEFT: bool>(
 }
 
 fn reset_positions_offsets(
-    w: usize,
+    delta: S,
     pos: &mut S,
     prefix_min: &mut S,
     pos_offset: &mut S,
     ring_buf: &mut RingBuf<S>,
 ) {
-    let delta = S::splat((1 << 16) - 2 - w as u32);
     *pos -= delta;
     *prefix_min -= delta;
     *pos_offset += delta;
@@ -318,7 +317,6 @@ pub fn sliding_lr_min_mapper_simd(
     let max_pos = S::splat((1 << 16) - 1);
     let mut pos = S::splat(0);
     let mut pos_offset: S = from_fn(|l| (l * len.saturating_sub(w - 1)) as u32).into();
-    let one = S::splat(1);
     let delta = S::splat((1 << 16) - 2 - w as u32);
 
     #[inline(always)]
@@ -338,7 +336,7 @@ pub fn sliding_lr_min_mapper_simd(
         let lelem = (val & val_mask) | pos;
         let relem = (!val & val_mask) | pos;
         let elem = (lelem, relem);
-        pos += one;
+        pos += S::ONE;
         ring_buf.push(elem);
         prefix_lr_min = simd_lr_min(prefix_lr_min, elem);
         // After a chunk has been filled, compute suffix minima.

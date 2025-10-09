@@ -169,8 +169,10 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                     break;
                 }
 
+                // FIXME: IS this one slow?
                 let mut m = [u32x8::ZERO; 8];
                 let mut i = 0;
+                let eight = S::splat(8);
                 it.for_each(
                     #[inline(always)]
                     |x| {
@@ -218,7 +220,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                                 }
                                 old[j] = lane;
                             }
-                            offsets += u32x8::splat(8);
+                            offsets += eight;
                         }
                         i += 1;
                     },

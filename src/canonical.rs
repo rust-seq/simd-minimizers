@@ -46,6 +46,7 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
 
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
     let mut cnt = i32x8::splat(-(l as i32));
+    let zero = i32x8::splat(0);
     let two = i32x8::splat(2);
 
     (
@@ -53,7 +54,7 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
         #[inline(always)]
         move |(a, r)| {
             cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-            let out = unsafe { transmute::<_, u32x8>(cnt.cmp_gt(i32x8::splat(0))) };
+            let out = unsafe { transmute::<_, u32x8>(cnt.cmp_gt(zero)) };
             cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
             out
         },

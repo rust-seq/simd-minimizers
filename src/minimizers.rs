@@ -16,7 +16,7 @@ use seq_hash::KmerHasher;
 use wide::u32x8;
 
 pub const SKIPPED: u32 = u32::MAX - 1;
-pub(crate) const SIMD_SKIPPED: u32x8 = unsafe { std::mem::transmute([SKIPPED; 8]) };
+pub(crate) const SIMD_SKIPPED: u32x8 = u32x8::new([SKIPPED; 8]);
 
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {

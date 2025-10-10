@@ -4,9 +4,9 @@ use core::mem::transmute;
 use packed_seq::L;
 
 #[cfg(target_feature = "neon")]
-const OFFSET: S = unsafe { std::mem::transmute([0x03_02_01_00; 8]) };
+const OFFSET: S = S::new([0x03_02_01_00; 8]);
 #[cfg(target_feature = "neon")]
-const MASK: S = unsafe { std::mem::transmute([0x04_04_04_04; 8]) };
+const MASK: S = S::new([0x04_04_04_04; 8]);
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.

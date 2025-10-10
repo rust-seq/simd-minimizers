@@ -151,7 +151,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 let len = it.len();
                 let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
                 let offsets: [u32; 8] = from_fn(|i| i as u32);
-                let mut offsets: u32x8 = unsafe { transmute(offsets) };
+                let mut offsets: u32x8 = S::new(offsets);
 
                 let mut mask = u32x8::ZERO;
                 let mut padding_i = 0;

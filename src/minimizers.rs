@@ -165,13 +165,12 @@ pub fn canonical_minimizers_seq_simd<'s>(
     })
 }
 
-/// Use canonical NtHash, and keep both leftmost and rightmost minima.
 #[inline(always)]
 pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
     nseq: packed_seq::PackedNSeq<'s>,
     hasher: &impl KmerHasher,
     w: usize,
-    cache: &mut Cache,
+    cache: &'s mut (Cache, Vec<u32x8>, Vec<u32x8>),
 ) -> PaddedIt<impl ChunkIt<u32x8>> {
     assert!(hasher.is_canonical());
 
@@ -180,16 +179,20 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
     let mut hash_mapper = hasher.in_out_mapper_simd(nseq.seq);
     let (c_delay, mut canonical_mapper) = canonical_mapper_simd(l);
 
-    let mut padded_it = nseq
-        .seq
-        .par_iter_bp_delayed_2_with_factor(l, hasher.delay(), c_delay, 2);
+    let mut padded_it = nseq.seq.par_iter_bp_delayed_2_with_factor_and_buf(
+        l,
+        hasher.delay(),
+        c_delay,
+        2,
+        &mut cache.1,
+    );
 
     // Process first k-1 characters separately, to initialize hash values.
     padded_it.advance_with(k - 1, |(a, rh, rc)| {
         hash_mapper((a, rh));
         canonical_mapper((a, rc));
     });
-    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), cache);
+    let mut sliding_min_mapper = sliding_lr_min_mapper_simd(w, padded_it.it.len(), &mut cache.0);
     padded_it.advance_with(w - 1, |(a, rh, rc)| {
         let hash = hash_mapper((a, rh));
         canonical_mapper((a, rc));
@@ -198,7 +201,10 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
 
     // jump over the l-1 first ambiguity results
     padded_it
-        .zip(nseq.ambiguous.par_iter_kmer_ambiguity(l, l, l - 1))
+        .zip(
+            nseq.ambiguous
+                .par_iter_kmer_ambiguity_with_buf(l, l, l - 1, &mut cache.2),
+        )
         .map(move |((a, rh, rc), ambi)| {
             let hash = hash_mapper((a, rh));
             let canonical = canonical_mapper((a, rc));

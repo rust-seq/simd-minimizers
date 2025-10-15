@@ -198,7 +198,7 @@ use seq_hash::NtHasher;
 pub use sliding_min::Cache;
 
 thread_local! {
-    static CACHE: std::cell::RefCell<Cache> = std::cell::RefCell::new(Cache::default());
+    static CACHE: std::cell::RefCell<(Cache, Vec<S>, Vec<S>)> = std::cell::RefCell::new(Default::default());
 }
 
 pub struct Builder<'h, const CANONICAL: bool, H: KmerHasher, SkPos> {
@@ -302,16 +302,16 @@ impl<'h, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, ()> {
 
         CACHE.with_borrow_mut(|cache| match (SIMD, CANONICAL) {
             (false, false) => collect_and_dedup_into_scalar(
-                minimizers_seq_scalar(seq, hasher, self.w, cache),
+                minimizers_seq_scalar(seq, hasher, self.w, &mut cache.0),
                 min_pos,
             ),
             (false, true) => collect_and_dedup_into_scalar(
-                canonical_minimizers_seq_scalar(seq, hasher, self.w, cache),
+                canonical_minimizers_seq_scalar(seq, hasher, self.w, &mut cache.0),
                 min_pos,
             ),
-            (true, false) => minimizers_seq_simd(seq, hasher, self.w, cache)
+            (true, false) => minimizers_seq_simd(seq, hasher, self.w, &mut cache.0)
                 .collect_and_dedup_into::<false>(min_pos),
-            (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
+            (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, &mut cache.0)
                 .collect_and_dedup_into::<false>(min_pos),
         });
         Output {
@@ -333,15 +333,21 @@ impl<'h, H: KmerHasher> Builder<'h, true, H, ()> {
         nseq: PackedNSeq<'s>,
         min_pos: &'o mut Vec<u32>,
     ) -> Output<'o, true, PackedSeq<'s>> {
+        CACHE
+            .with_borrow_mut(|cache| self.run_skip_ambiguous_windows_with_buf(nseq, min_pos, cache))
+    }
+    pub fn run_skip_ambiguous_windows_with_buf<'s, 'o>(
+        &self,
+        nseq: PackedNSeq<'s>,
+        min_pos: &'o mut Vec<u32>,
+        cache: &mut (Cache, Vec<S>, Vec<S>),
+    ) -> Output<'o, true, PackedSeq<'s>> {
         let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
         let hasher = self
             .hasher
             .unwrap_or_else(|| default_hasher.as_ref().unwrap());
-
-        CACHE.with_borrow_mut(|cache| {
-            canonical_minimizers_skip_ambiguous_windows(nseq, hasher, self.w, cache)
-                .collect_and_dedup_into::<true>(min_pos)
-        });
+        canonical_minimizers_skip_ambiguous_windows(nseq, hasher, self.w, cache)
+            .collect_and_dedup_into::<true>(min_pos);
         Output {
             k: self.k,
             seq: nseq.seq,
@@ -354,33 +360,11 @@ impl<'h, H: KmerHasher> Builder<'h, true, H, ()> {
 impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>> {
     pub fn run_scalar_once<'s, SEQ: Seq<'s>>(self, seq: SEQ) -> Vec<u32> {
         let mut min_pos = vec![];
-        self.run_impl::<false, _>(seq, &mut min_pos);
-        min_pos
-    }
-
-    pub fn run_once<'s, SEQ: Seq<'s>>(self, seq: SEQ) -> Vec<u32> {
-        let mut min_pos = vec![];
-        self.run_impl::<true, _>(seq, &mut min_pos);
+        self.run_scalar(seq, &mut min_pos);
         min_pos
     }
 
     pub fn run_scalar<'s, 'o, SEQ: Seq<'s>>(
-        self,
-        seq: SEQ,
-        min_pos: &'o mut Vec<u32>,
-    ) -> Output<'o, CANONICAL, SEQ> {
-        self.run_impl::<false, _>(seq, min_pos)
-    }
-
-    pub fn run<'s, 'o, SEQ: Seq<'s>>(
-        self,
-        seq: SEQ,
-        min_pos: &'o mut Vec<u32>,
-    ) -> Output<'o, CANONICAL, SEQ> {
-        self.run_impl::<true, _>(seq, min_pos)
-    }
-
-    fn run_impl<'s, 'o, const SIMD: bool, SEQ: Seq<'s>>(
         self,
         seq: SEQ,
         min_pos: &'o mut Vec<u32>,
@@ -390,22 +374,57 @@ impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher> Builder<'h, CANONICAL, H, &'
             .hasher
             .unwrap_or_else(|| default_hasher.as_ref().unwrap());
 
-        CACHE.with_borrow_mut(|cache| match (SIMD, CANONICAL) {
-            (false, false) => collect_and_dedup_with_index_into_scalar(
-                minimizers_seq_scalar(seq, hasher, self.w, cache),
+        CACHE.with_borrow_mut(|cache| match CANONICAL {
+            false => collect_and_dedup_with_index_into_scalar(
+                minimizers_seq_scalar(seq, hasher, self.w, &mut cache.0),
                 min_pos,
                 self.sk_pos,
             ),
-            (false, true) => collect_and_dedup_with_index_into_scalar(
-                canonical_minimizers_seq_scalar(seq, hasher, self.w, cache),
+            true => collect_and_dedup_with_index_into_scalar(
+                canonical_minimizers_seq_scalar(seq, hasher, self.w, &mut cache.0),
                 min_pos,
                 self.sk_pos,
             ),
-            (true, false) => minimizers_seq_simd(seq, hasher, self.w, cache)
-                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
-            (true, true) => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
-                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
         });
+        Output {
+            k: self.k,
+            seq,
+            min_pos,
+        }
+    }
+
+    pub fn run_once<'s, SEQ: Seq<'s>>(self, seq: SEQ) -> Vec<u32> {
+        let mut min_pos = vec![];
+        self.run(seq, &mut min_pos);
+        min_pos
+    }
+
+    pub fn run<'s, 'o, SEQ: Seq<'s>>(
+        self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        CACHE.with_borrow_mut(|cache| self.run_with_buf(seq, min_pos, &mut cache.0))
+    }
+
+    #[inline(always)]
+    fn run_with_buf<'s, 'o, SEQ: Seq<'s>>(
+        self,
+        seq: SEQ,
+        min_pos: &'o mut Vec<u32>,
+        cache: &mut Cache,
+    ) -> Output<'o, CANONICAL, SEQ> {
+        let default_hasher = self.hasher.is_none().then(|| H::new(self.k));
+        let hasher = self
+            .hasher
+            .unwrap_or_else(|| default_hasher.as_ref().unwrap());
+
+        match CANONICAL {
+            false => minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
+            true => canonical_minimizers_seq_simd(seq, hasher, self.w, cache)
+                .collect_and_dedup_with_index_into(min_pos, self.sk_pos),
+        };
         Output {
             k: self.k,
             seq,

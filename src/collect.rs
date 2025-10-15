@@ -5,7 +5,6 @@
 use std::{
     array::{self, from_fn},
     cell::RefCell,
-    mem::transmute,
 };
 
 use crate::{S, minimizers::SKIPPED};

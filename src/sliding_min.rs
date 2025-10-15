@@ -13,7 +13,7 @@ use core::array::from_fn;
 use std::hint::assert_unchecked;
 
 /// A custom RingBuf implementation that has a fixed size `w` and wraps around.
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct RingBuf<V> {
     w: usize,
     idx: usize,
@@ -73,7 +73,7 @@ impl<V> std::ops::DerefMut for RingBuf<V> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Cache {
     scalar: RingBuf<u32>,
     scalar_lr: RingBuf<(u32, u32)>,

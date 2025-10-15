@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+- Feat: add `run_with_buf` that reuses internal buffers.
+- Perf: more `inline(always)`.
+- Perf: avoid `u32x8::splat` on NEON.
+- Doc: clarify `target-cpu=native` in readme.
+
 ## 2.1.0
 - **Breaking:**: bump `packed-seq` to `4.1` with `PackedNSeq`.
 - Add `scalar` feature that forwards to `packed-seq`, to disable warnings about

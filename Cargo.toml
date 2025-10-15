@@ -7,8 +7,8 @@ incremental = true
 debug = true
 
 [workspace.dependencies]
-packed-seq = "4.1.1"
-seq-hash = "0.1.0"
+packed-seq = "4.2.0"
+seq-hash = "0.1.1"
 
 [package]
 name = "simd-minimizers"

@@ -1,5 +1,8 @@
 # Changelog
 
+## git
+- misc: `cargo update` to get `ensure_simd`
+
 ## 2.2.0
 - Feat: add `run_with_buf` that reuses internal buffers.
 - Perf: more `inline(always)`.

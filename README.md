@@ -20,19 +20,15 @@ The underlying algorithm is described in the following
 
 ## Requirements
 
-This library supports AVX2 and NEON instruction sets.
-Make sure to set `RUSTFLAGS="-C target-cpu=native"` when compiling to use the instruction sets available on your architecture:
+This library requires AVX2 or NEON instruction sets, which, on x64, requires
+either `target-cpu=native` or `target-cpu=x86-64-v3`.
+See [this README](https://github.com/ragnargrootkoerkamp/ensure_simd) for details and [this
+blog](https://curiouscoding.nl/posts/distributing-rust-simd-binaries/) for background.
+The same restrictions apply when using simd-minimizers in a larger project.
 
 ``` sh
-RUSTFLAGS="-C target-cpu=native" cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo run --release
 ```
-Or set it in your project or system wide `.cargo/config.toml`:
-```toml
-rustflags = ["-C", "target-cpu=native"]
-```
-
-Enable the `-F scalar` feature flag to fall back to a scalar implementation with
-reduced performance.
 
 ## Usage example
 

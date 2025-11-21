@@ -66,6 +66,7 @@
 //!
 //! This library depends on AVX2 or NEON SIMD instructions to achieve good performance.
 //! Make sure to compile with `-C target-cpu=native` to enable these instructions.
+//! See the [ensure_simd](https://github.com/ragnargrootkoerkamp/ensure_simd) crate for more details.
 //!
 //! All functions take a `out_vec: &mut Vec<u32>` parameter to which positions are _appended_.
 //! For best performance, re-use the same `out_vec` between invocations, and [`Vec::clear`] it before or after each call.

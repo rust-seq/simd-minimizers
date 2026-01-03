@@ -8,10 +8,24 @@ const OFFSET: S = S::new([0x03_02_01_00; 8]);
 #[cfg(target_feature = "neon")]
 const MASK: S = S::new([0x04_04_04_04; 8]);
 
+/// Append the values of `x` selected by `mask` to `v`.
+#[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[inline(always)]
+pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        for i in 0..L {
+            if mask.as_array()[i] != 0 {
+                v.as_mut_ptr().add(*write_idx).write(x.as_array()[i]);
+                *write_idx += 1;
+            }
+        }
+    }
+}
+
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
-#[inline(always)]
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[inline(always)]
 pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     old: S,
     new: S,
@@ -36,8 +50,8 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]` and `vals2` to `v2[write_idx]`.
-#[inline(always)]
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[inline(always)]
 pub unsafe fn append_unique_vals_2<const SKIP_MAX: bool>(
     old: S,
     new: S,
@@ -61,6 +75,21 @@ pub unsafe fn append_unique_vals_2<const SKIP_MAX: bool>(
                 prec = curr;
             }
         }
+    }
+}
+
+/// Append the values of `x` where `mask` is *false* to `v`.
+#[cfg(target_feature = "avx2")]
+#[inline(always)]
+pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        use core::arch::x86_64::*;
+        let mask = _mm256_movemask_ps(transmute(mask)) as usize;
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = transmute(UNIQSHUF[mask]);
+        let val = _mm256_permutevar8x32_epi32(transmute(vals), key);
+        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
+        *write_idx += numberofnewvalues;
     }
 }
 
@@ -89,17 +118,13 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
         let vec_tmp: S = transmute(_mm256_permutevar8x32_epi32(recon, movebyone_mask));
 
-        let mut m = vec_tmp.cmp_eq(new);
+        let mut mask = vec_tmp.cmp_eq(new);
         if SKIP_MAX {
             // skip everything equal to prev, or equal to MAX.
-            m |= new.cmp_eq(SIMD_SKIPPED);
+            mask |= new.cmp_eq(SIMD_SKIPPED);
         }
-        let m = _mm256_movemask_ps(transmute(m)) as usize;
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = transmute(UNIQSHUF[m]);
-        let val = _mm256_permutevar8x32_epi32(vals, key);
-        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
-        *write_idx += numberofnewvalues;
+
+        append_filtered_vals(vals, mask, v, write_idx);
     }
 }
 
@@ -132,13 +157,33 @@ pub unsafe fn append_unique_vals_2(
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
         let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
 
-        let m = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = transmute(UNIQSHUF[m]);
+        let mask = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = transmute(UNIQSHUF[mask]);
         let val = _mm256_permutevar8x32_epi32(vals, key);
         _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
         let val2 = _mm256_permutevar8x32_epi32(vals2, key);
         _mm256_storeu_si256(v2.as_mut_ptr().add(*write_idx) as *mut __m256i, val2);
+        *write_idx += numberofnewvalues;
+    }
+}
+
+/// Append the values of `x` selected by `mask` to `v`.
+#[cfg(target_feature = "neon")]
+#[inline(always)]
+pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        use core::arch::aarch64::{vqtbl2q_u8, vst1_u32_x4};
+        let mask = transmute::<_, wide::i32x8>(mask).move_mask() as usize;
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = UNIQSHUF[mask];
+        let idx = key * MASK + OFFSET;
+        let (i1, i2) = transmute(idx);
+        let t = transmute(vals);
+        let r1 = vqtbl2q_u8(t, i1);
+        let r2 = vqtbl2q_u8(t, i2);
+        let val: S = transmute((r1, r2));
+        vst1_u32_x4(v.as_mut_ptr().add(*write_idx), transmute(val));
         *write_idx += numberofnewvalues;
     }
 }
@@ -202,10 +247,10 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let pow2 = u32x4::new([16, 32, 64, 128]);
         let m1 = vaddvq_u32(transmute(d1 & pow1));
         let m2 = vaddvq_u32(transmute(d2 & pow2));
-        let m = (m1 | m2) as usize;
+        let mask = (m1 | m2) as usize;
 
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = UNIQSHUF[m];
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = UNIQSHUF[mask];
         let idx = key * MASK + OFFSET;
         let (i1, i2) = transmute(idx);
         let t = transmute(vals);
@@ -274,10 +319,10 @@ pub unsafe fn append_unique_vals_2(
         let pow2 = u32x4::new([16, 32, 64, 128]);
         let m1 = vaddvq_u32(transmute(d1 & pow1));
         let m2 = vaddvq_u32(transmute(d2 & pow2));
-        let m = (m1 | m2) as usize;
+        let mask = (m1 | m2) as usize;
 
-        let numberofnewvalues = L - m.count_ones() as usize;
-        let key = UNIQSHUF[m];
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = UNIQSHUF[mask];
         let idx = key * MASK + OFFSET;
         let (i1, i2) = transmute(idx);
         let t = transmute(vals);

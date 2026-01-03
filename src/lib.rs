@@ -153,6 +153,7 @@ mod canonical;
 pub mod collect;
 mod minimizers;
 mod sliding_min;
+pub mod syncmers;
 mod intrinsics {
     mod dedup;
     pub use dedup::{append_filtered_vals, append_unique_vals, append_unique_vals_2};

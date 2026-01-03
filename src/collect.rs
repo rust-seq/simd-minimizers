@@ -34,6 +34,7 @@ pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec:
     });
     out_vec.truncate(idx + 1);
 }
+
 pub fn collect_and_dedup_with_index_into_scalar(
     it: impl Iterator<Item = u32>,
     out_vec: &mut Vec<u32>,
@@ -111,7 +112,7 @@ pub trait CollectAndDedup: Sized {
     /// Works by taking 8 elements from each stream, and then transposing the SIMD-matrix before writing out the results.
     ///
     /// By default (when `SUPER` is false), the deduplicated input values are written in `out_vec`.
-    /// When `SUPER` is true, the index of the stream in which the input value first appeared, i.e., the start of its super-k-mer, is additionale written in `idx_vec`.
+    /// When `SUPER` is true, the index in the stream where the input value first appeared, i.e., the start of its super-k-mer, is additionaly written in `idx_vec`.
     fn collect_and_dedup_into_impl<const SUPER: bool, const SKIP_MAX: bool>(
         self,
         out_vec: &mut Vec<u32>,

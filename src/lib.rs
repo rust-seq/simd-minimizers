@@ -44,6 +44,14 @@
 //! 3. Compute the 'preferred' strand of the current window as the one with more `TG` characters. This requires `l=w+k-1` to be odd for proper tie-breaking.
 //! 4. Return either the leftmost or rightmost smallest k-mer, depending on the preferred strand.
 //!
+//! ## Syncmers
+//!
+//! _Syncmers_ are (in our notation) windows of length `l = w + k - 1` characters where the minimizer k-mer is a prefix or suffix.
+//! (Or, in classical notation, `k`-mers with the smallest `s`-mer as prefix or suffix.)
+//! These can be computed by using [`syncmers`] or [`canonical_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
+//!
+//! Note that canonical syncmers are chosen as the minimum of the forward and reverse-complement k-mer representation.
+//!
 //! ## Input types
 //!
 //! This crate depends on [`packed-seq`] to handle generic types of input sequences.

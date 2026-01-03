@@ -57,6 +57,14 @@ let minimizer_vals: Vec<u64> = canonical_minimizers(k, w)
     .run(packed_seq.as_slice(), &mut minimizer_positions)
     .values_u64()
     .collect();
+    
+// Compute _syncmers_ positions and values instead:
+let mut syncmer_positions = Vec::new();
+// List of (k+w-1)-mer values.
+let syncmer_vals: Vec<u64> = canonical_syncmers(k, w)
+    .run(packed_seq.as_slice(), &mut syncmer_positions)
+    .values_u64()
+    .collect();
 ```
 
 ## Benchmarks

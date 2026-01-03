@@ -155,7 +155,7 @@ mod minimizers;
 mod sliding_min;
 mod intrinsics {
     mod dedup;
-    pub use dedup::{append_unique_vals, append_unique_vals_2};
+    pub use dedup::{append_filtered_vals, append_unique_vals, append_unique_vals_2};
 }
 
 #[cfg(test)]

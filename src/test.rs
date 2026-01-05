@@ -104,9 +104,9 @@ fn minimizers_canonical() {
             assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
         });
     }
-    f(|k| NtHasher::<true>::new(k));
-    f(|k| MulHasher::<true>::new(k));
-    f(|k| AntiLexHasher::<true>::new(k));
+    f(NtHasher::<true>::new);
+    f(MulHasher::<true>::new);
+    f(AntiLexHasher::<true>::new);
 }
 
 #[test]

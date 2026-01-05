@@ -315,10 +315,17 @@ fn _builder<'s>(
         m.super_kmers(sk_pos).run(seq, min_pos);
     }
     // syncmers
-    let _ = syncmers(k, w).run(seq, min_pos);
-    let _ = syncmers(k, w).run_once(seq);
-    let _ = syncmers(k, w).run_scalar_once(seq);
-    let _ = canonical_syncmers(k, w)
+    let _ = closed_syncmers(k, w).run(seq, min_pos);
+    let _ = closed_syncmers(k, w).run_once(seq);
+    let _ = closed_syncmers(k, w).run_scalar_once(seq);
+    let _ = canonical_closed_syncmers(k, w)
+        .run(seq, min_pos)
+        .pos_and_values_u64()
+        .collect_vec();
+    let _ = open_syncmers(k, w).run(seq, min_pos);
+    let _ = open_syncmers(k, w).run_once(seq);
+    let _ = open_syncmers(k, w).run_scalar_once(seq);
+    let _ = canonical_open_syncmers(k, w)
         .run(seq, min_pos)
         .pos_and_values_u64()
         .collect_vec();
@@ -475,30 +482,44 @@ fn skip_ambiguous() {
 }
 
 #[test]
-fn syncmers_scalar() {
+fn closed_syncmers_scalar() {
     // Left-syncmers are selected.
     let min_pos = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     let mut out = vec![];
-    collect_syncmers_scalar(5, min_pos.into_iter(), &mut out);
+    collect_syncmers_scalar::<false>(5, min_pos.into_iter(), &mut out);
     assert_eq!(out, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     // Right-syncmers are selected.
     let min_pos = vec![4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
     let mut out = vec![];
-    collect_syncmers_scalar(5, min_pos.into_iter(), &mut out);
+    collect_syncmers_scalar::<false>(5, min_pos.into_iter(), &mut out);
     assert_eq!(out, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     // In-between are not selected.
     let min_pos = vec![1, 2, 5, 5, 5, 8, 7, 10, 10, 10];
     let mut out = vec![];
-    collect_syncmers_scalar(5, min_pos.into_iter(), &mut out);
+    collect_syncmers_scalar::<false>(5, min_pos.into_iter(), &mut out);
+    assert_eq!(out, vec![]);
+}
+
+#[test]
+fn open_syncmers_scalar() {
+    // Middle are selected.
+    let min_pos = vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    let mut out = vec![];
+    collect_syncmers_scalar::<true>(5, min_pos.into_iter(), &mut out);
+    assert_eq!(out, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // Left/Right/other
+    let min_pos = vec![0, 1, 6, 7, 7, 6, 6, 8, 11, 10];
+    let mut out = vec![];
+    collect_syncmers_scalar::<true>(5, min_pos.into_iter(), &mut out);
     assert_eq!(out, vec![]);
 }
 
 #[cfg(not(debug_assertions))]
 #[test]
 fn syncmers_simd_fwd() {
+    // Closed
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         let hasher = <NtHasher<false>>::new(k);
-        let m = syncmers(k, w);
 
         let min_pos = ascii_seq
             .0
@@ -507,8 +528,38 @@ fn syncmers_simd_fwd() {
             .map(|(pos, seq)| (pos + one_minimizer(AsciiSeq(seq), &hasher)) as u32)
             .collect::<Vec<_>>();
         let mut naive = vec![];
-        collect_syncmers_scalar(w, min_pos.into_iter(), &mut naive);
+        collect_syncmers_scalar::<false>(w, min_pos.into_iter(), &mut naive);
 
+        let m = closed_syncmers(k, w);
+        let scalar_ascii = m.run_scalar_once(ascii_seq);
+        let scalar_packed = m.run_scalar_once(packed_seq);
+        let simd_ascii = m.run_once(ascii_seq);
+        let simd_packed = m.run_once(packed_seq);
+
+        let len = ascii_seq.len();
+        assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
+    });
+
+    // Open
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        if w % 2 == 0 {
+            return;
+        }
+        let hasher = <NtHasher<false>>::new(k);
+
+        let min_pos = ascii_seq
+            .0
+            .windows(w + k - 1)
+            .enumerate()
+            .map(|(pos, seq)| (pos + one_minimizer(AsciiSeq(seq), &hasher)) as u32)
+            .collect::<Vec<_>>();
+        let mut naive = vec![];
+        collect_syncmers_scalar::<true>(w, min_pos.into_iter(), &mut naive);
+
+        let m = open_syncmers(k, w);
         let scalar_ascii = m.run_scalar_once(ascii_seq);
         let scalar_packed = m.run_scalar_once(packed_seq);
         let simd_ascii = m.run_once(ascii_seq);
@@ -522,8 +573,9 @@ fn syncmers_simd_fwd() {
     });
 }
 
+// Only for closed syncmers, since equal minimizers lead to 0 open syncmers.
 #[test]
-fn syncmer_values() {
+fn closed_syncmer_values() {
     // Test on a sequence with value [3,3,3,3] so that syncmer values are 2^(k+w-1)-1
     let n = 100;
     let ascii_seq = vec![b'G'; n];
@@ -531,10 +583,10 @@ fn syncmer_values() {
     let packed_seq = packed_seq.as_slice();
     for k in 1..10 {
         for w in 1..10 {
-            let m = syncmers(k, w);
-
             let pos = &mut vec![];
+            let m = closed_syncmers(k, w);
             let out = m.run(packed_seq, pos);
+
             let values = out.values_u64().collect_vec();
             assert_eq!(values.len(), n - (k + w - 1) + 1);
             for x in values {
@@ -546,11 +598,33 @@ fn syncmer_values() {
 
 #[test]
 fn syncmers_canonical() {
+    // Closed
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
         if (k + w - 1) % 2 == 0 {
             return;
         }
-        let m = canonical_syncmers(k, w);
+        let m = canonical_closed_syncmers(k, w);
+
+        let scalar_ascii = m.run_scalar_once(ascii_seq);
+        let scalar_packed = m.run_scalar_once(packed_seq);
+        let simd_ascii = m.run_once(ascii_seq);
+        let simd_packed = m.run_once(packed_seq);
+
+        let len = ascii_seq.len();
+        assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
+        assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+    });
+
+    // Open
+    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+        if w % 2 == 0 {
+            return;
+        }
+        if (k + w - 1) % 2 == 0 {
+            return;
+        }
+        let m = canonical_open_syncmers(k, w);
 
         let scalar_ascii = m.run_scalar_once(ascii_seq);
         let scalar_packed = m.run_scalar_once(packed_seq);
@@ -566,46 +640,69 @@ fn syncmers_canonical() {
 
 #[test]
 fn canonical_syncmers_positions_and_values() {
-    test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
-        if k + w - 1 > 32 {
-            return;
-        }
-        if (k + w - 1) % 2 == 0 {
-            return;
-        }
-        let m = canonical_syncmers(k, w);
+    fn test<const OPEN: bool>() {
+        test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {
+            if k + w - 1 > 32 {
+                return;
+            }
+            if w % 2 == 0 {
+                return;
+            }
+            if (k + w - 1) % 2 == 0 {
+                return;
+            }
 
-        let packed_seq_rc = packed_seq.to_revcomp();
-        let packed_seq_rc = packed_seq_rc.as_slice();
+            let packed_seq_rc = packed_seq.to_revcomp();
+            let packed_seq_rc = packed_seq_rc.as_slice();
 
-        let mut fwd_positions = vec![];
-        let mut rc_positions = vec![];
-        let fwd_values = m
-            .run(packed_seq, &mut fwd_positions)
-            .values_u64()
-            .collect_vec();
-        let mut rc_values = m
-            .run(packed_seq_rc, &mut rc_positions)
-            .values_u64()
-            .collect_vec();
+            let mut fwd_positions = vec![];
+            let mut rc_positions = vec![];
+            let fwd_values;
+            let mut rc_values;
 
-        // Check that positions are symmetric.
-        let len = ascii_seq.len();
-        for (&x, &y) in fwd_positions.iter().zip(rc_positions.iter().rev()) {
+            if OPEN {
+                let m = canonical_open_syncmers(k, w);
+                fwd_values = m
+                    .run(packed_seq, &mut fwd_positions)
+                    .values_u64()
+                    .collect_vec();
+                rc_values = m
+                    .run(packed_seq_rc, &mut rc_positions)
+                    .values_u64()
+                    .collect_vec();
+            } else {
+                let m = canonical_closed_syncmers(k, w);
+                fwd_values = m
+                    .run(packed_seq, &mut fwd_positions)
+                    .values_u64()
+                    .collect_vec();
+                rc_values = m
+                    .run(packed_seq_rc, &mut rc_positions)
+                    .values_u64()
+                    .collect_vec();
+            }
+
+            // Check that positions are symmetric.
+            let len = ascii_seq.len();
+            for (&x, &y) in fwd_positions.iter().zip(rc_positions.iter().rev()) {
+                assert_eq!(
+                    (x + y) as usize,
+                    len - (k + w - 1),
+                    "k={k}, w={w}, fwd={x}, rc={y}"
+                );
+            }
+
+            // Check that values are the same.
+            rc_values.reverse();
             assert_eq!(
-                (x + y) as usize,
-                len - (k + w - 1),
-                "k={k}, w={w}, fwd={x}, rc={y}"
+                fwd_values,
+                rc_values,
+                "k={k}, w={w}, len={}",
+                ascii_seq.len()
             );
-        }
+        });
+    }
 
-        // Check that values are the same.
-        rc_values.reverse();
-        assert_eq!(
-            fwd_values,
-            rc_values,
-            "k={k}, w={w}, len={}",
-            ascii_seq.len()
-        );
-    });
+    test::<false>();
+    test::<true>();
 }

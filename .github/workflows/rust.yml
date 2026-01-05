@@ -18,6 +18,8 @@ jobs:
         run: cargo build --verbose --package simd-minimizers
       - name: Run tests
         run: cargo test --verbose --package simd-minimizers
+      - name: Run tests release
+        run: cargo test --release --verbose --package simd-minimizers
 
   test-mac:
     runs-on: macos-latest
@@ -27,3 +29,5 @@ jobs:
         run: cargo build --verbose --package simd-minimizers
       - name: Run tests
         run: cargo test --verbose --package simd-minimizers
+      - name: Run tests release
+        run: cargo test --release --verbose --package simd-minimizers

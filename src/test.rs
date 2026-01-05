@@ -50,6 +50,7 @@ fn test_on_inputs(mut f: impl FnMut(usize, usize, &[u8], AsciiSeq, PackedSeq)) {
     }
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn minimizers_fwd() {
     fn f<H: KmerHasher>(hasher: impl Fn(usize) -> H) {
@@ -492,6 +493,7 @@ fn syncmers_scalar() {
     assert_eq!(out, vec![]);
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn syncmers_simd_fwd() {
     test_on_inputs(|k, w, _slice, ascii_seq, packed_seq| {

@@ -81,7 +81,7 @@ pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &
         use core::arch::x86_64::*;
         let mask = _mm256_movemask_ps(transmute(mask)) as usize;
         let numberofnewvalues = L - mask.count_ones() as usize;
-        let key = transmute(UNIQSHUF[mask]);
+        let key = UNIQSHUF[mask];
         append_filtered_vals_from_key(vals, key, v, write_idx);
         *write_idx += numberofnewvalues;
     }
@@ -137,7 +137,6 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         use core::arch::x86_64::*;
 
         let old = transmute(old);
-        let vals = transmute(vals);
 
         let recon = _mm256_blend_epi32(old, transmute(new), 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
@@ -175,8 +174,6 @@ pub unsafe fn append_unique_vals_2(
 
         let old = transmute(old);
         let new = transmute(new);
-        let vals = transmute(vals);
-        let vals2 = transmute(vals2);
 
         let recon = _mm256_blend_epi32(old, new, 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle

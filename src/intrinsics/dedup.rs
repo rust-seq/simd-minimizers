@@ -181,7 +181,7 @@ pub unsafe fn append_unique_vals_2(
         let recon = _mm256_blend_epi32(old, new, 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
         let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
-        let mut mask = transmute(_mm256_cmpeq_epi32(vec_tmp, new));
+        let mask = transmute(_mm256_cmpeq_epi32(vec_tmp, new));
 
         append_filtered_vals_2(vals, vals2, mask, v, v2, write_idx);
     }

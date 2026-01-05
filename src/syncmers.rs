@@ -12,11 +12,29 @@ use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
 use wide::u32x8;
 
 /// Collect positions of all syncmers.
-pub fn collect_syncmers_scalar(w: usize, it: impl Iterator<Item = u32>, out_vec: &mut Vec<u32>) {
+/// `OPEN`:
+/// - `false`: closed syncmers
+/// - `true`: open syncmers
+pub fn collect_syncmers_scalar<const OPEN: bool>(
+    w: usize,
+    it: impl Iterator<Item = u32>,
+    out_vec: &mut Vec<u32>,
+) {
+    if OPEN {
+        assert!(
+            w % 2 == 1,
+            "Open syncmers require odd window size, so that there is a unique middle element."
+        );
+    }
     unsafe { out_vec.set_len(out_vec.capacity()) };
     let mut idx = 0;
     it.enumerate().for_each(|(i, min_pos)| {
-        if min_pos as usize == i || min_pos as usize == i + w - 1 {
+        let is_syncmer = if OPEN {
+            min_pos as usize == i + w / 2
+        } else {
+            min_pos as usize == i || min_pos as usize == i + w - 1
+        };
+        if is_syncmer {
             if idx == out_vec.len() {
                 out_vec.reserve(1);
                 unsafe { out_vec.set_len(out_vec.capacity()) };
@@ -32,16 +50,16 @@ pub trait CollectSyncmers: Sized {
     /// Collect all indices where syncmers start.
     ///
     /// Automatically skips `SIMD_SKIPPED` values for ambiguous windows for sequences shorter than 2^32-2 or so.
-    fn collect_syncmers(self, w: usize) -> Vec<u32> {
+    fn collect_syncmers<const OPEN: bool>(self, w: usize) -> Vec<u32> {
         let mut v = vec![];
-        self.collect_syncmers_into(w, &mut v);
+        self.collect_syncmers_into::<OPEN>(w, &mut v);
         v
     }
 
     /// Collect all indices where syncmers start into `out_vec`.
     ///
     /// Automatically skips `SIMD_SKIPPED` values for ambiguous windows for sequences shorter than 2^32-2 or so.
-    fn collect_syncmers_into(self, w: usize, out_vec: &mut Vec<u32>);
+    fn collect_syncmers_into<const OPEN: bool>(self, w: usize, out_vec: &mut Vec<u32>);
 }
 
 thread_local! {
@@ -51,7 +69,7 @@ thread_local! {
 impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
     // mostly copied from `Collect::collect_minimizers_into`
     #[inline(always)]
-    fn collect_syncmers_into(self, w: usize, out_vec: &mut Vec<u32>) {
+    fn collect_syncmers_into<const OPEN: bool>(self, w: usize, out_vec: &mut Vec<u32>) {
         let Self { it, padding } = self;
         CACHE.with(
             #[inline(always)]
@@ -91,8 +109,11 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                         let x = x | mask;
 
                         // Every non-syncmer minimizer pos is masked out.
-                        let is_syncmer = x.cmp_eq(lane_offsets)
-                            | x.cmp_eq(lane_offsets + S::splat(w as u32 - 1));
+                        let is_syncmer = if OPEN {
+                            x.cmp_eq(lane_offsets + S::splat((w / 2) as u32))
+                        } else {
+                            x.cmp_eq(lane_offsets) | x.cmp_eq(lane_offsets + S::splat(w as u32 - 1))
+                        };
                         // current window position if syncmer, else u32::MAX
                         let y = is_syncmer.blend(lane_offsets, u32x8::MAX);
 

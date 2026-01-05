@@ -82,9 +82,39 @@ pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &
         let mask = _mm256_movemask_ps(transmute(mask)) as usize;
         let numberofnewvalues = L - mask.count_ones() as usize;
         let key = transmute(UNIQSHUF[mask]);
-        let val = _mm256_permutevar8x32_epi32(transmute(vals), key);
-        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
+        append_filtered_vals_from_key(vals, key, v, write_idx);
         *write_idx += numberofnewvalues;
+    }
+}
+
+#[cfg(target_feature = "avx2")]
+#[inline(always)]
+pub unsafe fn append_filtered_vals_2(
+    vals: S,
+    vals2: S,
+    mask: S,
+    v: &mut [u32],
+    v2: &mut [u32],
+    write_idx: &mut usize,
+) {
+    unsafe {
+        use core::arch::x86_64::*;
+        let mask = _mm256_movemask_ps(transmute(mask)) as usize;
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = UNIQSHUF[mask];
+        append_filtered_vals_from_key(vals, key, v, write_idx);
+        append_filtered_vals_from_key(vals2, key, v2, write_idx);
+        *write_idx += numberofnewvalues;
+    }
+}
+
+#[cfg(target_feature = "avx2")]
+#[inline(always)]
+unsafe fn append_filtered_vals_from_key(vals: S, key: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        use core::arch::x86_64::*;
+        let val = _mm256_permutevar8x32_epi32(transmute(vals), transmute(key));
+        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
     }
 }
 
@@ -151,42 +181,82 @@ pub unsafe fn append_unique_vals_2(
         let recon = _mm256_blend_epi32(old, new, 0b01111111);
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
         let vec_tmp = _mm256_permutevar8x32_epi32(recon, movebyone_mask);
+        let mut mask = transmute(_mm256_cmpeq_epi32(vec_tmp, new));
 
-        let mask = _mm256_movemask_ps(transmute(_mm256_cmpeq_epi32(vec_tmp, new))) as usize;
-        let numberofnewvalues = L - mask.count_ones() as usize;
-        let key = transmute(UNIQSHUF[mask]);
-        let val = _mm256_permutevar8x32_epi32(vals, key);
-        _mm256_storeu_si256(v.as_mut_ptr().add(*write_idx) as *mut __m256i, val);
-        let val2 = _mm256_permutevar8x32_epi32(vals2, key);
-        _mm256_storeu_si256(v2.as_mut_ptr().add(*write_idx) as *mut __m256i, val2);
-        *write_idx += numberofnewvalues;
+        append_filtered_vals_2(vals, vals2, mask, v, v2, write_idx);
     }
 }
+
+#[cfg(target_feature = "neon")]
+const POW1: wide::u32x4 = wide::u32x4::new([1, 2, 4, 8]);
+#[cfg(target_feature = "neon")]
+const POW2: wide::u32x4 = wide::u32x4::new([16, 32, 64, 128]);
+#[cfg(target_feature = "neon")]
+const NEW_OLD_MASK: S = S::new([!0, !0, !0, !0, !0, !0, !0, 0]);
+#[cfg(target_feature = "neon")]
+const I1: core::arch::aarch64::uint8x16_t =
+    unsafe { transmute([0x1F1E1D1C, 0x03020100, 0x07060504, 0x0B0A0908]) };
+#[cfg(target_feature = "neon")]
+const I2: core::arch::aarch64::uint8x16_t =
+    unsafe { transmute([0x0F0E0D0C, 0x13121110, 0x17161514, 0x1B1A1918]) };
 
 /// Append the values of `x` selected by `mask` to `v`.
 #[cfg(target_feature = "neon")]
 #[inline(always)]
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
-        use core::arch::aarch64::{vaddvq_u32, vqtbl2q_u8, vst1_u32_x4};
+        use core::arch::aarch64::vaddvq_u32;
         use wide::u32x4;
-
-        const POW1: u32x4 = u32x4::new([1, 2, 4, 8]);
-        const POW2: u32x4 = u32x4::new([16, 32, 64, 128]);
 
         let (m1, m2): (u32x4, u32x4) = transmute(mask);
         let m1 = vaddvq_u32(transmute(m1 & POW1));
         let m2 = vaddvq_u32(transmute(m2 & POW2));
         let mask = (m1 | m2) as usize;
         let numberofnewvalues = L - mask.count_ones() as usize;
-        let idx = UNIQSHUF_NEON[mask];
-        let (i1, i2) = transmute(idx);
+        let key = UNIQSHUF_NEON[mask];
+        append_filtered_vals_from_key(vals, key, v, write_idx);
+        *write_idx += numberofnewvalues;
+    }
+}
+
+#[cfg(target_feature = "neon")]
+#[inline(always)]
+pub unsafe fn append_filtered_vals_2(
+    vals: S,
+    vals2: S,
+    mask: S,
+    v: &mut [u32],
+    v2: &mut [u32],
+    write_idx: &mut usize,
+) {
+    unsafe {
+        use core::arch::aarch64::vaddvq_u32;
+        use wide::u32x4;
+
+        let (m1, m2): (u32x4, u32x4) = transmute(mask);
+        let m1 = vaddvq_u32(transmute(m1 & POW1));
+        let m2 = vaddvq_u32(transmute(m2 & POW2));
+        let mask = (m1 | m2) as usize;
+        let numberofnewvalues = L - mask.count_ones() as usize;
+        let key = UNIQSHUF_NEON[mask];
+        append_filtered_vals_from_key(vals, key, v, write_idx);
+        append_filtered_vals_from_key(vals2, key, v2, write_idx);
+        *write_idx += numberofnewvalues;
+    }
+}
+
+#[cfg(target_feature = "neon")]
+#[inline(always)]
+unsafe fn append_filtered_vals_from_key(vals: S, key: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        use core::arch::aarch64::{vqtbl2q_u8, vst1_u32_x4};
+
+        let (i1, i2) = transmute(key);
         let t = transmute(vals);
         let r1 = vqtbl2q_u8(t, i1);
         let r2 = vqtbl2q_u8(t, i2);
         let val: S = transmute((r1, r2));
         vst1_u32_x4(v.as_mut_ptr().add(*write_idx), transmute(val));
-        *write_idx += numberofnewvalues;
     }
 }
 
@@ -208,32 +278,11 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     unsafe {
         use core::arch::aarch64::vqtbl2q_u8;
 
-        const NEW_OLD_MASK: S = S::new([
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            0,
-        ]);
         let recon = NEW_OLD_MASK.blend(new, old);
-        let (i1, i2) = transmute([
-            0x1F1E1D1Cu32,
-            0x03020100,
-            0x07060504,
-            0x0B0A0908,
-            0x0F0E0D0C,
-            0x13121110,
-            0x17161514,
-            0x1B1A1918,
-        ]);
         let t = transmute(recon);
-        let r1 = vqtbl2q_u8(t, i1);
-        let r2 = vqtbl2q_u8(t, i2);
+        let r1 = vqtbl2q_u8(t, I1);
+        let r2 = vqtbl2q_u8(t, I2);
         let prec: S = transmute((r1, r2));
-
         let mut dup = prec.cmp_eq(new);
         if SKIP_MAX {
             dup |= new.cmp_eq(SIMD_SKIPPED);
@@ -260,61 +309,15 @@ pub unsafe fn append_unique_vals_2(
     write_idx: &mut usize,
 ) {
     unsafe {
-        use core::arch::aarch64::{vaddvq_u32, vqtbl2q_u8, vst1_u32_x4};
-        use wide::u32x4;
+        use core::arch::aarch64::vqtbl2q_u8;
 
-        let new_old_mask = S::new([
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            u32::MAX,
-            0,
-        ]);
-        let recon = new_old_mask.blend(new, old);
-
-        // let rotate_idx = S::new([7, 0, 1, 2, 3, 4, 5, 6]);
-        // let idx = rotate_idx * S::splat(0x04_04_04_04) + S::splat(0x03_02_01_00);
-        // let (i1, i2) = transmute(idx);
-        let (i1, i2) = transmute([
-            0x1F1E1D1Cu32,
-            0x03020100,
-            0x07060504,
-            0x0B0A0908,
-            0x0F0E0D0C,
-            0x13121110,
-            0x17161514,
-            0x1B1A1918,
-        ]);
+        let recon = NEW_OLD_MASK.blend(new, old);
         let t = transmute(recon);
-        let r1 = vqtbl2q_u8(t, i1);
-        let r2 = vqtbl2q_u8(t, i2);
+        let r1 = vqtbl2q_u8(t, I1);
+        let r2 = vqtbl2q_u8(t, I2);
         let prec: S = transmute((r1, r2));
-
         let dup = prec.cmp_eq(new);
-        let (d1, d2): (u32x4, u32x4) = transmute(dup);
-        let pow1 = u32x4::new([1, 2, 4, 8]);
-        let pow2 = u32x4::new([16, 32, 64, 128]);
-        let m1 = vaddvq_u32(transmute(d1 & pow1));
-        let m2 = vaddvq_u32(transmute(d2 & pow2));
-        let mask = (m1 | m2) as usize;
-
-        let numberofnewvalues = L - mask.count_ones() as usize;
-        let idx = UNIQSHUF_NEON[mask];
-        let (i1, i2) = transmute(idx);
-        let t = transmute(vals);
-        let r1 = vqtbl2q_u8(t, i1);
-        let r2 = vqtbl2q_u8(t, i2);
-        let val: S = transmute((r1, r2));
-        vst1_u32_x4(v.as_mut_ptr().add(*write_idx), transmute(val));
-        let t = transmute(vals2);
-        let r1 = vqtbl2q_u8(t, i1);
-        let r2 = vqtbl2q_u8(t, i2);
-        let val2: S = transmute((r1, r2));
-        vst1_u32_x4(v2.as_mut_ptr().add(*write_idx), transmute(val2));
-        *write_idx += numberofnewvalues;
+        append_filtered_vals_2(vals, vals2, dup, v, v2, write_idx);
     }
 }
 
@@ -584,7 +587,7 @@ const UNIQSHUF: [S; 256] = unsafe {transmute([
 #[cfg(target_feature = "neon")]
 #[allow(clippy::erasing_op, clippy::identity_op)]
 #[rustfmt::skip]
-const UNIQSHUF_NEON: [wide::u8x32; 256] = unsafe {
+const UNIQSHUF_NEON: [wide::u32x8; 256] = unsafe {
 const M: u32 = 0x04_04_04_04;
 const O: u32 = 0x03_02_01_00;
 transmute([

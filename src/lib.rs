@@ -3,6 +3,7 @@
 //! The main functions are:
 //! - [`minimizer_positions`]: compute the positions of all minimizers of a sequence.
 //! - [`canonical_minimizer_positions`]: compute the positions of all _canonical_ minimizers of a sequence.
+//!
 //! Adjacent equal positions are deduplicated, but since the canonical minimizer is _not_ _forward_, a position could appear more than once.
 //!
 //! The implementation uses SIMD by splitting each sequence into 8 chunks and processing those in parallel.
@@ -228,7 +229,7 @@ pub struct Output<'o, const CANONICAL: bool, S> {
 }
 
 #[must_use]
-pub fn minimizers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, (), false> {
+pub const fn minimizers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, (), false> {
     Builder {
         k,
         w,
@@ -238,7 +239,7 @@ pub fn minimizers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>
 }
 
 #[must_use]
-pub fn canonical_minimizers(
+pub const fn canonical_minimizers(
     k: usize,
     w: usize,
 ) -> Builder<'static, true, NtHasher<true>, (), false> {
@@ -257,7 +258,7 @@ pub fn canonical_minimizers(
 /// `k` here corresponds to `s` in original syncmer notation: the minimizer length.
 /// `k+w-1` corresponds to `k` in original syncmer notation: the length of the extracted string.
 #[must_use]
-pub fn syncmers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, (), true> {
+pub const fn syncmers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, (), true> {
     Builder {
         k,
         w,
@@ -267,7 +268,10 @@ pub fn syncmers(k: usize, w: usize) -> Builder<'static, false, NtHasher<false>, 
 }
 
 #[must_use]
-pub fn canonical_syncmers(k: usize, w: usize) -> Builder<'static, true, NtHasher<true>, (), true> {
+pub const fn canonical_syncmers(
+    k: usize,
+    w: usize,
+) -> Builder<'static, true, NtHasher<true>, (), true> {
     Builder {
         k,
         w,
@@ -280,7 +284,7 @@ impl<const CANONICAL: bool, const SYNCMERS: bool>
     Builder<'static, CANONICAL, NtHasher<CANONICAL>, (), SYNCMERS>
 {
     #[must_use]
-    pub fn hasher<'h, H2: KmerHasher>(
+    pub const fn hasher<'h, H2: KmerHasher>(
         &self,
         hasher: &'h H2,
     ) -> Builder<'h, CANONICAL, H2, (), SYNCMERS> {
@@ -296,7 +300,7 @@ impl<'h, const CANONICAL: bool, H: KmerHasher, const SYNCMERS: bool>
     Builder<'h, CANONICAL, H, (), SYNCMERS>
 {
     #[must_use]
-    pub fn super_kmers<'o2>(
+    pub const fn super_kmers<'o2>(
         &self,
         sk_pos: &'o2 mut Vec<u32>,
     ) -> Builder<'h, CANONICAL, H, &'o2 mut Vec<u32>, SYNCMERS> {
@@ -304,7 +308,7 @@ impl<'h, const CANONICAL: bool, H: KmerHasher, const SYNCMERS: bool>
             k: self.k,
             w: self.w,
             hasher: self.hasher,
-            sk_pos: sk_pos,
+            sk_pos,
         }
     }
 }
@@ -392,7 +396,7 @@ impl<'h, const CANONICAL: bool, H: KmerHasher, const SYNCMERS: bool>
 }
 
 impl<'h, H: KmerHasher, const SYNCMERS: bool> Builder<'h, true, H, (), SYNCMERS> {
-    pub fn run_skip_ambiguous_windows_once<'s, 'o>(&self, nseq: PackedNSeq<'s>) -> Vec<u32> {
+    pub fn run_skip_ambiguous_windows_once<'s>(&self, nseq: PackedNSeq<'s>) -> Vec<u32> {
         let mut min_pos = vec![];
         self.run_skip_ambiguous_windows(nseq, &mut min_pos);
         min_pos

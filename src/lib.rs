@@ -12,8 +12,7 @@
 //!
 //! The minimizer of a single window can be found using [`one_minimizer`] and [`one_canonical_minimizer`], but note that these functions are not nearly as efficient.
 //!
-//! The [`scalar`] versions are mostly for testing only, and basically always slower.
-//! Only for short sequences with length up to 100 is [`scalar::minimizer_positions_scalar`] faster than the SIMD version.
+//! The `scalar` versions are mostly for testing only, and basically always slower.
 //!
 //! ## Minimizers
 //!
@@ -49,15 +48,15 @@
 //!
 //! _Syncmers_ are (in our notation) windows of length `l = w + k - 1` characters where the minimizer k-mer is a prefix or suffix.
 //! (Or, in classical notation, `k`-mers with the smallest `s`-mer as prefix or suffix.)
-//! These can be computed by using [`syncmers`] or [`canonical_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
+//! These can be computed by using [`fn@syncmers`] or [`canonical_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
 //!
 //! Note that canonical syncmers are chosen as the minimum of the forward and reverse-complement k-mer representation.
 //!
 //! ## Input types
 //!
-//! This crate depends on [`packed-seq`] to handle generic types of input sequences.
+//! This crate depends on [`packed_seq`] to handle generic types of input sequences.
 //! Most commonly, one should use [`packed_seq::PackedSeqVec`] for packed DNA sequences, but one can also simply wrap a sequence of `ACTGactg` characters in [`packed_seq::AsciiSeqVec`].
-//! Additionally, [`simd-minimizers`] works on general (ASCII) `&[u8]` text.
+//! Additionally, `simd_minimizers` works on general (ASCII) `&[u8]` text.
 //!
 //! The main function provided by [`packed_seq`] is [`packed_seq::Seq::iter_bp`], which splits the input into 8 chunks and iterates them in parallel using SIMD.
 //!

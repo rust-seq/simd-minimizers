@@ -3,6 +3,9 @@
 <!-- next-header -->
 
 ## git
+- feat: add support for open and closed syncmers.
+- code: simplify/cleanup dedup intrinsics
+- ci: skip some tests in debug mode
 - misc: `cargo update` to get `ensure_simd`
 
 ## 2.2.0

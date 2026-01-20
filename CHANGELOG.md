@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## git
+
+## 2.3.0
 - feat: add support for open and closed syncmers.
 - code: simplify/cleanup dedup intrinsics
 - ci: skip some tests in debug mode

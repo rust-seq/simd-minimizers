@@ -12,7 +12,7 @@ seq-hash = "0.1.1"
 
 [package]
 name = "simd-minimizers"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/rust-seq/simd-minimizers"

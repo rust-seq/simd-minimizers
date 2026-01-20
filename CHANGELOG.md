@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- next-header -->
+
 ## git
 - misc: `cargo update` to get `ensure_simd`
 

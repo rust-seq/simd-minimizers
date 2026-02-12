@@ -160,6 +160,7 @@
 mod canonical;
 pub mod collect;
 mod minimizers;
+mod modmini;
 mod sliding_min;
 pub mod syncmers;
 mod intrinsics {

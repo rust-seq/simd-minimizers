@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## git
+
+## 2.3.1
 - bugfix: Fix bug on 32-bit platforms where `1<<32` overflows.
 
 ## 2.3.0

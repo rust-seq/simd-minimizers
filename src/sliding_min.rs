@@ -94,7 +94,7 @@ pub fn sliding_min_mapper_scalar<const LEFT: bool>(
         "sliding_min is not tested for windows of length > 2^15."
     );
     assert!(
-        len < (1 << 32),
+        (len as u64) < (1u64 << 32),
         "sliding_min returns 32bit indices. Try splitting the input into 4GB chunks first."
     );
     let mut prefix_min = u32::MAX;
@@ -153,7 +153,7 @@ pub fn sliding_lr_min_mapper_scalar(
         "sliding_min is not tested for windows of length > 2^15."
     );
     assert!(
-        len < (1 << 32),
+        (len as u64) < (1u64 << 32),
         "sliding_min returns 32bit indices. Try splitting the input into 4GB chunks first."
     );
     let mut prefix_lr_min = (u32::MAX, u32::MAX);
@@ -226,7 +226,7 @@ pub fn sliding_min_mapper_simd<const LEFT: bool>(
 ) -> impl FnMut(S) -> S {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
-    assert!(len * 8 < (1 << 32));
+    assert!((len as u64) * 8 < (1u64 << 32));
     let mut prefix_min = S::splat(u32::MAX);
     let ring_buf = cache.simd.assign(w, prefix_min);
     // We only compare the upper 16 bits of each hash.
@@ -306,7 +306,7 @@ pub fn sliding_lr_min_mapper_simd(
 ) -> impl FnMut(S) -> (S, S) {
     assert!(w > 0);
     assert!(w < (1 << 15), "This method is not tested for large w.");
-    assert!(len * 8 < (1 << 32));
+    assert!((len as u64) * 8 < (1u64 << 32));
     let mut prefix_lr_min = (S::splat(u32::MAX), S::splat(u32::MAX));
     let ring_buf = cache.simd_lr.assign(w, prefix_lr_min);
     // let mut ring_buf = RingBuf::new(w, prefix_lr_min);

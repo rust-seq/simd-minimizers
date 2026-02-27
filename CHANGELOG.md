@@ -3,6 +3,7 @@
 <!-- next-header -->
 
 ## git
+- bugfix: Fix bug on 32-bit platforms where `1<<32` overflows.
 
 ## 2.3.0
 - feat: add support for open and closed syncmers.

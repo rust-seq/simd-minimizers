@@ -49,6 +49,7 @@
 //! _Syncmers_ are (in our notation) windows of length `l = w + k - 1` characters where the minimizer k-mer is a prefix or suffix.
 //! (Or, in classical notation, `k`-mers with the smallest `s`-mer as prefix or suffix.)
 //! These can be computed by using [`fn@syncmers`] or [`canonical_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
+//! To obtain their values via [`Output::values_u64`], `l` (rather than `k`) has to be at most 32.
 //!
 //! Note that canonical syncmers are chosen as the minimum of the forward and reverse-complement k-mer representation.
 //!
@@ -60,7 +61,7 @@
 //!
 //! The main function provided by [`packed_seq`] is [`packed_seq::Seq::iter_bp`], which splits the input into 8 chunks and iterates them in parallel using SIMD.
 //!
-//! When dealing with ASCII input, use the `AsciiSeq` and `AsciiSeqVec` types.
+//! When the input is ASCII-encoded DNA, either use the `AsciiSeq` and `AsciiSeqVec` types, or (usually preferred) first convert to `PackedSeqVec`.
 //!
 //! ## Hash function
 //!
@@ -573,16 +574,22 @@ impl<'h, 'o2, const CANONICAL: bool, H: KmerHasher>
 
 impl<'s, 'o, const CANONICAL: bool, SEQ: Seq<'s>> Output<'o, CANONICAL, SEQ> {
     /// Iterator over (canonical) u64 kmer-values associated with all minimizer positions.
+    ///
+    /// For syncmers, this returns `l=w+k-1`-mers.
     #[must_use]
     pub fn values_u64(&self) -> impl ExactSizeIterator<Item = u64> {
         self.pos_and_values_u64().map(|(_pos, val)| val)
     }
     /// Iterator over (canonical) u128 kmer-values associated with all minimizer positions.
+    ///
+    /// For syncmers, this returns `l=w+k-1`-mers.
     #[must_use]
     pub fn values_u128(&self) -> impl ExactSizeIterator<Item = u128> {
         self.pos_and_values_u128().map(|(_pos, val)| val)
     }
     /// Iterator over positions and (canonical) u64 kmer-values associated with all minimizer positions.
+    ///
+    /// For syncmers, this returns `l=w+k-1`-mer values.
     #[must_use]
     pub fn pos_and_values_u64(&self) -> impl ExactSizeIterator<Item = (u32, u64)> {
         self.min_pos.iter().map(

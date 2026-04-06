@@ -23,7 +23,7 @@
 //!
 //! Briefly, minimizers are defined using two parameters `k` and `w`.
 //! Given a sequence of characters, all k-mers (substrings of length `k`) are hashed,
-//! and for each _window_ of `k` consecutive k-mers (of length `l = w + k - 1` characters),
+//! and for each _window_ of `w` consecutive k-mers (of length `l = w + k - 1` characters),
 //! (the position of) the smallest k-mer is sampled.
 //!
 //! Minimizers are found as follows:

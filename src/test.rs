@@ -2,7 +2,7 @@ use super::*;
 use crate::minimizers::*;
 use itertools::Itertools;
 use packed_seq::{AsciiSeq, AsciiSeqVec, PackedNSeqVec, PackedSeq, PackedSeqVec, PaddedIt, SeqVec};
-use rand::{Rng, random_range};
+use rand::{RngExt, random_range};
 use seq_hash::{AntiLexHasher, MulHasher, NtHasher};
 use std::sync::LazyLock;
 

@@ -8,8 +8,9 @@ use std::{
 };
 
 use crate::{S, minimizers::SKIPPED};
+use packed_seq::u32x8;
 use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
-use wide::u32x8;
+use seq_hash::packed_seq;
 
 pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec: &mut Vec<u32>) {
     let Some(mut prev) = it.next() else {
@@ -160,7 +161,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 let mut remaining_padding = padding;
                 for i in (0..8).rev() {
                     if remaining_padding >= len {
-                        mask.as_array_mut()[i] = u32::MAX;
+                        mask.as_mut_array()[i] = u32::MAX;
                         remaining_padding -= len;
                         continue;
                     }
@@ -177,7 +178,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                     #[inline(always)]
                     |x| {
                         if i == padding_i {
-                            mask.as_array_mut()[padding_idx] = u32::MAX;
+                            mask.as_mut_array()[padding_idx] = u32::MAX;
                         }
                         let x = x | mask;
                         m[i % 8] = x;
@@ -237,14 +238,12 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 let t = transpose(m);
                 let k = i % 8;
                 for j in 0..8 {
-                    let lane = t[j].as_array_ref();
+                    let lane = t[j].as_array();
                     for (p, x) in lane.iter().take(k).enumerate() {
                         if v[j].last() != Some(x) && (!SKIP_MAX || *x != SKIPPED) {
                             v[j].push(*x);
                             if SUPER {
-                                v2[j].push(
-                                    offsets.as_array_ref()[p] + lane_offsets[j].as_array_ref()[p],
-                                );
+                                v2[j].push(offsets.as_array()[p] + lane_offsets[j].as_array()[p]);
                             }
                         }
                     }

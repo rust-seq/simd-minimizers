@@ -158,6 +158,11 @@
 
 #![allow(clippy::missing_transmute_annotations)]
 
+/// Re-export of the `seq-hash` crate.
+pub use seq_hash;
+/// Re-export of the `packed-seq` crate.
+pub use seq_hash::packed_seq;
+
 mod canonical;
 pub mod collect;
 mod minimizers;
@@ -182,19 +187,15 @@ pub mod private {
     pub mod sliding_min {
         pub use crate::sliding_min::*;
     }
-    pub use packed_seq::u32x8 as S;
+    pub use seq_hash::packed_seq::u32x8 as S;
 }
 
 use collect::CollectAndDedup;
 use collect::collect_and_dedup_into_scalar;
 use collect::collect_and_dedup_with_index_into_scalar;
 use minimizers::canonical_minimizers_skip_ambiguous_windows;
-/// Re-export of the `packed-seq` crate.
-pub use packed_seq;
 use packed_seq::PackedNSeq;
 use packed_seq::PackedSeq;
-/// Re-export of the `seq-hash` crate.
-pub use seq_hash;
 
 use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,

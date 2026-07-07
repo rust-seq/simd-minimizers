@@ -2,6 +2,8 @@ use crate::S;
 #[allow(unused)]
 use core::mem::transmute;
 use packed_seq::L;
+use packed_seq::wide::{u32x4, u32x8};
+use seq_hash::packed_seq;
 
 /// Append the values of `x` where `mask` is *false* to `v`.
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
@@ -144,10 +146,10 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let movebyone_mask = _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7); // rotate shuffle
         let vec_tmp: S = transmute(_mm256_permutevar8x32_epi32(recon, movebyone_mask));
 
-        let mut mask = vec_tmp.cmp_eq(new);
+        let mut mask = vec_tmp.simd_eq(new);
         if SKIP_MAX {
             // skip everything equal to prev, or equal to MAX.
-            mask |= new.cmp_eq(crate::minimizers::SIMD_SKIPPED);
+            mask |= new.simd_eq(crate::minimizers::SIMD_SKIPPED);
         }
 
         append_filtered_vals(vals, mask, v, write_idx);
@@ -187,9 +189,9 @@ pub unsafe fn append_unique_vals_2(
 }
 
 #[cfg(target_feature = "neon")]
-const POW1: wide::u32x4 = wide::u32x4::new([1, 2, 4, 8]);
+const POW1: u32x4 = u32x4::new([1, 2, 4, 8]);
 #[cfg(target_feature = "neon")]
-const POW2: wide::u32x4 = wide::u32x4::new([16, 32, 64, 128]);
+const POW2: u32x4 = u32x4::new([16, 32, 64, 128]);
 #[cfg(target_feature = "neon")]
 const NEW_OLD_MASK: S = S::new([!0, !0, !0, !0, !0, !0, !0, 0]);
 #[cfg(target_feature = "neon")]
@@ -205,7 +207,7 @@ const I2: core::arch::aarch64::uint8x16_t =
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
         use core::arch::aarch64::vaddvq_u32;
-        use wide::u32x4;
+        use u32x4;
 
         let (m1, m2): (u32x4, u32x4) = transmute(mask);
         let m1 = vaddvq_u32(transmute(m1 & POW1));
@@ -230,7 +232,7 @@ pub unsafe fn append_filtered_vals_2(
 ) {
     unsafe {
         use core::arch::aarch64::vaddvq_u32;
-        use wide::u32x4;
+        use u32x4;
 
         let (m1, m2): (u32x4, u32x4) = transmute(mask);
         let m1 = vaddvq_u32(transmute(m1 & POW1));
@@ -282,9 +284,10 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let r1 = vqtbl2q_u8(t, I1);
         let r2 = vqtbl2q_u8(t, I2);
         let prec: S = transmute((r1, r2));
-        let mut dup = prec.cmp_eq(new);
+
+        let mut dup = prec.simd_eq(new);
         if SKIP_MAX {
-            dup |= new.cmp_eq(crate::minimizers::SIMD_SKIPPED);
+            dup |= new.simd_eq(crate::minimizers::SIMD_SKIPPED);
         }
         append_filtered_vals(vals, dup, v, write_idx);
     }
@@ -315,7 +318,7 @@ pub unsafe fn append_unique_vals_2(
         let r1 = vqtbl2q_u8(t, I1);
         let r2 = vqtbl2q_u8(t, I2);
         let prec: S = transmute((r1, r2));
-        let dup = prec.cmp_eq(new);
+        let dup = prec.simd_eq(new);
         append_filtered_vals_2(vals, vals2, dup, v, v2, write_idx);
     }
 }
@@ -586,7 +589,7 @@ const UNIQSHUF: [S; 256] = unsafe {transmute([
 #[cfg(target_feature = "neon")]
 #[allow(clippy::erasing_op, clippy::identity_op)]
 #[rustfmt::skip]
-const UNIQSHUF_NEON: [wide::u32x8; 256] = unsafe {
+const UNIQSHUF_NEON: [u32x8; 256] = unsafe {
 const M: u32 = 0x04_04_04_04;
 const O: u32 = 0x03_02_01_00;
 transmute([
@@ -852,8 +855,8 @@ transmute([
 #[cfg(test)]
 mod test {
     use super::*;
+    use packed_seq::u32x8 as S;
     use std::time::Instant;
-    use wide::u32x8 as S;
     const L: usize = 8;
 
     #[test]

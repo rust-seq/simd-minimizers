@@ -3,7 +3,8 @@ use std::mem::transmute;
 
 use crate::S;
 use packed_seq::Delay;
-use wide::{CmpGt, i32x8, u32x8};
+use packed_seq::wide::{i32x8, u32x8};
+use seq_hash::packed_seq;
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
@@ -53,7 +54,7 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
         #[inline(always)]
         move |(a, r)| {
             cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-            let out = unsafe { transmute::<_, u32x8>(cnt.cmp_gt(i32x8::ZERO)) };
+            let out = unsafe { transmute::<_, u32x8>(cnt.simd_gt(i32x8::ZERO)) };
             cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
             out
         },

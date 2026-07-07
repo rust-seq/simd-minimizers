@@ -8,8 +8,9 @@ use std::{
 };
 
 use crate::{S, minimizers::SKIPPED};
+use packed_seq::u32x8;
 use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
-use wide::u32x8;
+use seq_hash::packed_seq;
 
 /// Collect positions of all syncmers.
 /// `OPEN`:
@@ -88,7 +89,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                 let mut remaining_padding = padding;
                 for i in (0..8).rev() {
                     if remaining_padding >= len {
-                        mask.as_array_mut()[i] = u32::MAX;
+                        mask.as_mut_array()[i] = u32::MAX;
                         remaining_padding -= len;
                         continue;
                     }
@@ -104,15 +105,16 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                     #[inline(always)]
                     |x| {
                         if i == padding_i {
-                            mask.as_array_mut()[padding_idx] = u32::MAX;
+                            mask.as_mut_array()[padding_idx] = u32::MAX;
                         }
                         let x = x | mask;
 
                         // Every non-syncmer minimizer pos is masked out.
                         let is_syncmer = if OPEN {
-                            x.cmp_eq(lane_offsets + S::splat((w / 2) as u32))
+                            x.simd_eq(lane_offsets + S::splat((w / 2) as u32))
                         } else {
-                            x.cmp_eq(lane_offsets) | x.cmp_eq(lane_offsets + S::splat(w as u32 - 1))
+                            x.simd_eq(lane_offsets)
+                                | x.simd_eq(lane_offsets + S::splat(w as u32 - 1))
                         };
                         // current window position if syncmer, else u32::MAX
                         let y = is_syncmer.blend(lane_offsets, u32x8::MAX);
@@ -133,7 +135,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                                     crate::intrinsics::append_filtered_vals(
                                         lane,
                                         // skip masked out values
-                                        lane.cmp_eq(u32x8::MAX),
+                                        lane.simd_eq(u32x8::MAX),
                                         &mut v[j],
                                         &mut write_idx[j],
                                     );
@@ -153,7 +155,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                 let t = transpose(m);
                 let k = i % 8;
                 for j in 0..8 {
-                    let lane = t[j].as_array_ref();
+                    let lane = t[j].as_array();
                     for &x in lane.iter().take(k) {
                         if x < SKIPPED {
                             v[j].push(x);

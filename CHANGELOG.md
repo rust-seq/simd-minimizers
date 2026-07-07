@@ -3,6 +3,11 @@
 <!-- next-header -->
 
 ## git
+- Bump `packed-seq` and `seq-hash`, new `wide` version with potential breaking syntax changes:
+  - `.as_array_ref()` -> `.as_array()`
+  - `.as_array_mut()` -> `.as_mut_array()`
+  - `.cmp_eq` / `.cmp_gt` / `.cmp_lt` -> `.simd_eq` / `.simd_gt` / `.simd_lt`
+  - `.move_mask()` -> `.to_bitmask()`
 - docs: small clarifications
 
 ## 2.3.1

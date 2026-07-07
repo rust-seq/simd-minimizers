@@ -1,4 +1,5 @@
 use packed_seq::SeqVec;
+use seq_hash::packed_seq;
 
 fn main() {
     let k = 31;

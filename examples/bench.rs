@@ -1,5 +1,6 @@
 use clap::Parser;
 use packed_seq::SeqVec;
+use seq_hash::packed_seq;
 use seq_hash::{KmerHasher, NtHasher};
 
 #[derive(clap::Parser)]

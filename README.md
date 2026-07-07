@@ -10,9 +10,9 @@ It also provides a *canonical* version that ensures that a sequence and its reve
 
 This crate builds on [`packed_seq`](https://github.com/rust-seq/packed-seq) and
 [`seq-hash`](https://github.com/rust-seq/seq-hash).
- 
+
 The underlying algorithm is described in the following
-[**paper**](https://doi.org/10.4230/LIPIcs.SEA.2025.20): 
+[**paper**](https://doi.org/10.4230/LIPIcs.SEA.2025.20):
 
 - SimdMinimizers: Computing random minimizers, fast.
   Ragnar Groot Koerkamp, Igor Martayan
@@ -35,6 +35,7 @@ RUSTFLAGS="-C target-cpu=native" cargo run --release
 Full documentation can be found on [docs.rs](https://docs.rs/simd-minimizers).
 
 ```rust
+use simd_minimizers::packed_seq;
 use packed_seq::{PackedSeqVec, SeqVec};
 
 let seq = b"ACGTGCTCAGAGACTCAGAGGA";

@@ -86,6 +86,7 @@
 //!
 //! ```
 //! // Scalar ASCII version.
+//! use simd_minimizers::packed_seq;
 //! use packed_seq::{SeqVec, AsciiSeq};
 //!
 //! let seq = b"ACGTGCTCAGAGACTCAG";
@@ -102,6 +103,7 @@
 //!
 //! ```
 //! // Packed SIMD version.
+//! use simd_minimizers::packed_seq;
 //! use packed_seq::{PackedSeqVec, SeqVec, Seq};
 //!
 //! let seq = b"ACGTGCTCAGAGACTCAGAGGA";
@@ -142,6 +144,7 @@
 //!
 //! ```
 //! // Packed SIMD version with seeded hashes.
+//! use simd_minimizers::{packed_seq, seq_hash};
 //! use packed_seq::{PackedSeqVec, SeqVec};
 //!
 //! let seq = b"ACGTGCTCAGAGACTCAG";

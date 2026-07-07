@@ -2,8 +2,10 @@ use crate::S;
 #[allow(unused)]
 use core::mem::transmute;
 use packed_seq::L;
-use packed_seq::wide::{u32x4, u32x8};
 use seq_hash::packed_seq;
+
+#[cfg(target_feature = "neon")]
+use packed_seq::wide::{u32x4, u32x8};
 
 /// Append the values of `x` where `mask` is *false* to `v`.
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
@@ -207,7 +209,6 @@ const I2: core::arch::aarch64::uint8x16_t =
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
         use core::arch::aarch64::vaddvq_u32;
-        use u32x4;
 
         let (m1, m2): (u32x4, u32x4) = transmute(mask);
         let m1 = vaddvq_u32(transmute(m1 & POW1));
@@ -232,7 +233,6 @@ pub unsafe fn append_filtered_vals_2(
 ) {
     unsafe {
         use core::arch::aarch64::vaddvq_u32;
-        use u32x4;
 
         let (m1, m2): (u32x4, u32x4) = transmute(mask);
         let m1 = vaddvq_u32(transmute(m1 & POW1));

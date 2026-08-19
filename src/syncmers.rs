@@ -67,7 +67,7 @@ thread_local! {
     static CACHE: RefCell<[Vec<u32>; 8]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
-impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
+impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
     // mostly copied from `Collect::collect_minimizers_into`
     #[inline(always)]
     fn collect_syncmers_into<const OPEN: bool>(self, w: usize, out_vec: &mut Vec<u32>) {
@@ -80,9 +80,9 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                 let mut write_idx = [0; 8];
 
                 let len = it.len();
-                let mut lane_offsets: u32x8 = u32x8::from(from_fn(|i| (i * len) as u32));
+                let mut lane_offsets: S = S::from(from_fn(|i| (i * len) as u32));
 
-                let mut mask = u32x8::ZERO;
+                let mut mask = S::ZERO;
                 let mut padding_i = 0;
                 let mut padding_idx = 0;
                 assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
@@ -99,7 +99,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                 }
 
                 // FIXME: Is this one slow?
-                let mut m = [u32x8::ZERO; 8];
+                let mut m = [S::ZERO; 8];
                 let mut i = 0;
                 it.for_each(
                     #[inline(always)]
@@ -117,7 +117,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                                 | x.simd_eq(lane_offsets + S::splat(w as u32 - 1))
                         };
                         // current window position if syncmer, else u32::MAX
-                        let y = is_syncmer.select(lane_offsets, u32x8::MAX);
+                        let y = is_syncmer.select(lane_offsets, S::MAX);
 
                         m[i % 8] = y;
                         if i % 8 == 7 {
@@ -135,7 +135,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                                     crate::intrinsics::append_filtered_vals(
                                         lane,
                                         // skip masked out values
-                                        lane.simd_eq(u32x8::MAX),
+                                        lane.simd_eq(S::MAX),
                                         &mut v[j],
                                         &mut write_idx[j],
                                     );

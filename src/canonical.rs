@@ -39,7 +39,7 @@ pub fn canonical_mapper_scalar(l: usize) -> (Delay, impl FnMut((u8, u8)) -> bool
 /// and return the remaining few using the second iterator.
 /// NOTE: First l-1 values are bogus.
 #[inline(always)]
-pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
+pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> S) {
     assert!(
         l % 2 == 1,
         "Window length l={l} must be odd to guarantee canonicality"
@@ -54,7 +54,7 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> u32x8) {
         #[inline(always)]
         move |(a, r)| {
             cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-            let out = unsafe { transmute::<_, u32x8>(cnt.simd_gt(i32x8::ZERO)) };
+            let out = unsafe { transmute::<_, S>(cnt.simd_gt(i32x8::ZERO)) };
             cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
             out
         },

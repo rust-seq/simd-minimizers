@@ -17,7 +17,7 @@ use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::{KmerHasher, packed_seq};
 
 pub const SKIPPED: u32 = u32::MAX - 1;
-pub(crate) const SIMD_SKIPPED: u32x8 = u32x8::new([SKIPPED; 8]);
+pub(crate) const SIMD_SKIPPED: S = S::new([SKIPPED; 8]);
 
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
@@ -58,7 +58,7 @@ pub fn minimizers_seq_simd<'s>(
     hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
-) -> PaddedIt<impl ChunkIt<u32x8>> {
+) -> PaddedIt<impl ChunkIt<S>> {
     let kmer_hashes = hasher.hash_kmers_simd(seq, w);
     let len = kmer_hashes.it.len();
     kmer_hashes
@@ -136,7 +136,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
     hasher: &impl KmerHasher,
     w: usize,
     cache: &mut Cache,
-) -> PaddedIt<impl ChunkIt<u32x8>> {
+) -> PaddedIt<impl ChunkIt<S>> {
     assert!(hasher.is_canonical());
 
     let k = hasher.k();
@@ -171,8 +171,8 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
     nseq: packed_seq::PackedNSeq<'s>,
     hasher: &impl KmerHasher,
     w: usize,
-    cache: &'s mut (Cache, Vec<u32x8>, Vec<u32x8>),
-) -> PaddedIt<impl ChunkIt<u32x8>> {
+    cache: &'s mut (Cache, Vec<S>, Vec<S>),
+) -> PaddedIt<impl ChunkIt<S>> {
     assert!(hasher.is_canonical());
 
     let k = hasher.k();

@@ -125,7 +125,7 @@ thread_local! {
     static CACHE: RefCell<[Vec<u32>; 16]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
-impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
+impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
     #[inline(always)]
     fn collect_and_dedup_into_impl<const SUPER: bool, const SKIP_MAX: bool>(
         self,
@@ -150,11 +150,11 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 let mut old = [S::MAX; 8];
 
                 let len = it.len();
-                let lane_offsets: [u32x8; 8] = from_fn(|i| u32x8::splat((i * len) as u32));
+                let lane_offsets: [S; 8] = from_fn(|i| S::splat((i * len) as u32));
                 let offsets: [u32; 8] = from_fn(|i| i as u32);
-                let mut offsets: u32x8 = S::new(offsets);
+                let mut offsets: S = S::new(offsets);
 
-                let mut mask = u32x8::ZERO;
+                let mut mask = S::ZERO;
                 let mut padding_i = 0;
                 let mut padding_idx = 0;
                 assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
@@ -171,7 +171,7 @@ impl<I: ChunkIt<u32x8>> CollectAndDedup for PaddedIt<I> {
                 }
 
                 // FIXME: IS this one slow?
-                let mut m = [u32x8::ZERO; 8];
+                let mut m = [S::ZERO; 8];
                 let mut i = 0;
                 let eight = S::splat(8);
                 it.for_each(

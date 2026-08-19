@@ -279,7 +279,7 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     unsafe {
         use core::arch::aarch64::vqtbl2q_u8;
 
-        let recon = NEW_OLD_MASK.blend(new, old);
+        let recon = NEW_OLD_MASK.select(new, old);
         let t = transmute(recon);
         let r1 = vqtbl2q_u8(t, I1);
         let r2 = vqtbl2q_u8(t, I2);
@@ -313,7 +313,7 @@ pub unsafe fn append_unique_vals_2(
     unsafe {
         use core::arch::aarch64::vqtbl2q_u8;
 
-        let recon = NEW_OLD_MASK.blend(new, old);
+        let recon = NEW_OLD_MASK.select(new, old);
         let t = transmute(recon);
         let r1 = vqtbl2q_u8(t, I1);
         let r2 = vqtbl2q_u8(t, I2);

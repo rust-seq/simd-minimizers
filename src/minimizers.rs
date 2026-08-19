@@ -10,6 +10,7 @@ use super::{
     canonical::canonical_mapper_simd,
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
+use crate::S;
 use itertools::{Itertools, izip};
 use packed_seq::u32x8;
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
@@ -161,7 +162,7 @@ pub fn canonical_minimizers_seq_simd<'s>(
         let hash = hash_mapper((a, rh));
         let canonical = canonical_mapper((a, rc));
         let (lmin, rmin) = sliding_min_mapper(hash);
-        canonical.blend(lmin, rmin)
+        canonical.select(lmin, rmin)
     })
 }
 
@@ -209,6 +210,6 @@ pub fn canonical_minimizers_skip_ambiguous_windows<'s>(
             let hash = hash_mapper((a, rh));
             let canonical = canonical_mapper((a, rc));
             let (lmin, rmin) = sliding_min_mapper(hash);
-            ambi.blend(SIMD_SKIPPED, canonical.blend(lmin, rmin))
+            ambi.select(SIMD_SKIPPED, canonical.select(lmin, rmin))
         })
 }

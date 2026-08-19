@@ -190,6 +190,7 @@ pub mod private {
     pub mod sliding_min {
         pub use crate::sliding_min::*;
     }
+
     pub use seq_hash::packed_seq::u32x8 as S;
 }
 
@@ -204,8 +205,8 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
+use packed_seq::S;
 use packed_seq::Seq;
-use packed_seq::u32x8 as S;
 use seq_hash::KmerHasher;
 
 pub use minimizers::one_minimizer;

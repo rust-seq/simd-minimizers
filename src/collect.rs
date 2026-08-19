@@ -121,7 +121,7 @@ pub trait CollectAndDedup: Sized {
 }
 
 thread_local! {
-    static CACHE: RefCell<[Vec<u32>; 16]> = RefCell::new(array::from_fn(|_| Vec::new()));
+    static CACHE: RefCell<[Vec<u32>; 2*L]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
 impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
@@ -136,11 +136,11 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
             #[inline(always)]
             |v| {
                 let mut v = v.borrow_mut();
-                let (v, v2) = v.split_at_mut(8);
+                let (v, v2) = v.split_at_mut(L);
                 if SUPER {
                     // make sure out cache and idx cache have the same size at the start
-                    for i in 0..8 {
-                        v2[i].resize(v[i].len(), 0);
+                    for j in 0..L {
+                        v2[j].resize(v[j].len(), 0);
                     }
                 }
 
@@ -158,14 +158,14 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                 let mut padding_idx = 0;
                 assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
                 let mut remaining_padding = padding;
-                for i in (0..8).rev() {
+                for j in (0..L).rev() {
                     if remaining_padding >= len {
-                        mask.as_mut_array()[i] = u32::MAX;
+                        mask.as_mut_array()[j] = u32::MAX;
                         remaining_padding -= len;
                         continue;
                     }
                     padding_i = len - remaining_padding;
-                    padding_idx = i;
+                    padding_idx = j;
                     break;
                 }
 
@@ -183,7 +183,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                         m[i % 8] = x;
                         if i % 8 == 7 {
                             let t = transpose_back(m);
-                            for j in 0..8 {
+                            for j in 0..L {
                                 let lane = t[j];
                                 if write_idx[j] + 8 > v[j].len() {
                                     v[j].reserve(8);
@@ -226,7 +226,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                     },
                 );
 
-                for j in 0..8 {
+                for j in 0..L {
                     v[j].truncate(write_idx[j]);
                     if SUPER {
                         v2[j].truncate(write_idx[j]);
@@ -236,7 +236,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                 // Manually write the unfinished parts of length k=i%8.
                 let t = transpose_back(m);
                 let k = i % 8;
-                for j in 0..8 {
+                for j in 0..L {
                     let lane = t[j].as_array();
                     for (p, x) in lane.iter().take(k).enumerate() {
                         if v[j].last() != Some(x) && (!SKIP_MAX || *x != SKIPPED) {

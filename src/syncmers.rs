@@ -63,7 +63,7 @@ pub trait CollectSyncmers: Sized {
 }
 
 thread_local! {
-    static CACHE: RefCell<[Vec<u32>; 8]> = RefCell::new(array::from_fn(|_| Vec::new()));
+    static CACHE: RefCell<[Vec<u32>; L]> = RefCell::new(array::from_fn(|_| Vec::new()));
 }
 
 impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
@@ -76,7 +76,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
             |v| {
                 let mut v = v.borrow_mut();
 
-                let mut write_idx = [0; 8];
+                let mut write_idx = [0; L];
 
                 let len = it.len();
                 let mut lane_offsets: S = S::from(from_fn(|i| (i * len) as u32));
@@ -86,7 +86,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
                 let mut padding_idx = 0;
                 assert!(padding <= L * len, "padding {padding} <= L {L} * len {len}");
                 let mut remaining_padding = padding;
-                for i in (0..8).rev() {
+                for i in (0..L).rev() {
                     if remaining_padding >= len {
                         mask.as_mut_array()[i] = u32::MAX;
                         remaining_padding -= len;
@@ -121,7 +121,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
                         m[i % 8] = y;
                         if i % 8 == 7 {
                             let t = transpose_back(m);
-                            for j in 0..8 {
+                            for j in 0..L {
                                 let lane = t[j];
                                 if write_idx[j] + 8 > v[j].len() {
                                     v[j].reserve(8);
@@ -146,14 +146,14 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
                     },
                 );
 
-                for j in 0..8 {
+                for j in 0..L {
                     v[j].truncate(write_idx[j]);
                 }
 
                 // Manually write the unfinished parts of length k=i%8.
                 let t = transpose_back(m);
                 let k = i % 8;
-                for j in 0..8 {
+                for j in 0..L {
                     let lane = t[j].as_array();
                     for &x in lane.iter().take(k) {
                         if x < SKIPPED {

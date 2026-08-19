@@ -25,3 +25,6 @@ rayon = "1.12"
 [[bench]]
 name = "bench"
 harness = false
+
+[features]
+avx512 = ["simd-minimizers/avx512"]

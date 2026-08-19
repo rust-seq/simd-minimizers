@@ -1,8 +1,10 @@
 use itertools::Itertools;
-use packed_seq::{AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec, unpack_base};
 use rand::{Rng, random_range};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use seq_hash::{KmerHasher, MulHasher, NtHasher};
+use simd_minimizers::packed_seq::{
+    AsciiSeq, AsciiSeqVec, Delay, PackedSeqVec, Seq, SeqVec, unpack_base,
+};
 use simd_minimizers::{
     Cache, canonical_minimizers, collect::CollectAndDedup, minimizers, private::*,
 };

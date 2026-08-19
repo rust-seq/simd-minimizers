@@ -165,6 +165,8 @@
 pub use seq_hash;
 /// Re-export of the `packed-seq` crate.
 pub use seq_hash::packed_seq;
+/// Re-export of the `wide` crate.
+pub use seq_hash::wide;
 
 mod canonical;
 pub mod collect;
@@ -180,6 +182,7 @@ mod intrinsics {
 mod test;
 
 /// Re-exported internals. Used for benchmarking, and not part of the semver-compatible stable API.
+#[doc(hidden)]
 pub mod private {
     pub mod canonical {
         pub use crate::canonical::*;
@@ -191,7 +194,7 @@ pub mod private {
         pub use crate::sliding_min::*;
     }
 
-    pub use seq_hash::packed_seq::u32x8 as S;
+    pub use seq_hash::packed_seq::S;
 }
 
 use collect::CollectAndDedup;

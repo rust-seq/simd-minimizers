@@ -33,7 +33,7 @@ pub use ringbuf::*;
 pub use sliding_min::*;
 pub use split::*;
 
-use packed_seq::{PackedSeqVec, SeqVec};
+use simd_minimizers::packed_seq::{PackedSeqVec, SeqVec};
 
 pub(crate) const MAXIMUM_K_SIZE: usize = u32::max_value() as usize;
 

@@ -8,8 +8,7 @@ use std::{
 };
 
 use crate::{S, minimizers::SKIPPED};
-use packed_seq::u32x8;
-use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
+use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose_back, u32x8};
 use seq_hash::packed_seq;
 
 /// Collect positions of all syncmers.
@@ -121,7 +120,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
 
                         m[i % 8] = y;
                         if i % 8 == 7 {
-                            let t = transpose(m);
+                            let t = transpose_back(m);
                             for j in 0..8 {
                                 let lane = t[j];
                                 if write_idx[j] + 8 > v[j].len() {
@@ -135,7 +134,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
                                     crate::intrinsics::append_filtered_vals(
                                         lane,
                                         // skip masked out values
-                                        lane.simd_eq(S::MAX),
+                                        lane.simd_eq(u32x8::MAX),
                                         &mut v[j],
                                         &mut write_idx[j],
                                     );
@@ -152,7 +151,7 @@ impl<I: ChunkIt<S>> CollectSyncmers for PaddedIt<I> {
                 }
 
                 // Manually write the unfinished parts of length k=i%8.
-                let t = transpose(m);
+                let t = transpose_back(m);
                 let k = i % 8;
                 for j in 0..8 {
                     let lane = t[j].as_array();

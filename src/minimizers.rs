@@ -10,14 +10,14 @@ use super::{
     canonical::canonical_mapper_simd,
     sliding_min::{sliding_lr_min_mapper_simd, sliding_min_mapper_simd},
 };
+use crate::L;
 use crate::S;
 use itertools::{Itertools, izip};
-use packed_seq::u32x8;
 use packed_seq::{Advance, ChunkIt, Delay, PaddedIt, Seq};
 use seq_hash::{KmerHasher, packed_seq};
 
 pub const SKIPPED: u32 = u32::MAX - 1;
-pub(crate) const SIMD_SKIPPED: S = S::new([SKIPPED; 8]);
+pub(crate) const SIMD_SKIPPED: S = S::new([SKIPPED; L]);
 
 /// Minimizer position of a single window.
 pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {

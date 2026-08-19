@@ -648,8 +648,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "packed-seq"
 version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a3a89b413dff56614047583dad3cc5c4a61ad16a436a578dfaf8c214e98734a"
+source = "git+https://github.com/rust-seq/packed-seq?branch=avx512-take2#cb9e4a75a0d7d8916c8f29625b1688dbe2e42415"
 dependencies = [
  "cfg-if",
  "ensure_simd",
@@ -859,8 +858,7 @@ dependencies = [
 [[package]]
 name = "seq-hash"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51964cd37dd62e0376ecfec7b08e221bb02c37faad1ffc46ad304d30f551721b"
+source = "git+https://github.com/rust-seq/seq-hash?branch=avx512#02a8e1c8ea10cb8456f49c95004a09b9cd35b3ab"
 dependencies = [
  "packed-seq",
 ]

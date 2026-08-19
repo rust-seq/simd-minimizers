@@ -1,11 +1,13 @@
-use crate::S;
 #[allow(unused)]
 use core::mem::transmute;
-use packed_seq::L;
-use seq_hash::packed_seq;
 
 #[cfg(target_feature = "neon")]
-use packed_seq::wide::{u32x4, u32x8};
+use wide::{u32x4, u32x8};
+
+// In this file, we always use u32x8.
+use seq_hash::packed_seq::wide;
+type S = wide::u32x8;
+const L: usize = 8;
 
 /// Append the values of `x` where `mask` is *false* to `v`.
 #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
@@ -151,7 +153,7 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
         let mut mask = vec_tmp.simd_eq(new);
         if SKIP_MAX {
             // skip everything equal to prev, or equal to MAX.
-            mask |= new.simd_eq(crate::minimizers::SIMD_SKIPPED);
+            mask |= new.simd_eq(wide::u32x8::splat(crate::minimizers::SKIPPED));
         }
 
         append_filtered_vals(vals, mask, v, write_idx);
@@ -855,7 +857,6 @@ transmute([
 #[cfg(test)]
 mod test {
     use super::*;
-    use packed_seq::u32x8 as S;
     use std::time::Instant;
     const L: usize = 8;
 

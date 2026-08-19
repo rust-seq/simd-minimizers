@@ -6,6 +6,10 @@ lto = "thin"
 incremental = true
 debug = true
 
+[workspace.dependencies]
+# seq-hash = "0.2.0"
+seq-hash = { git = "https://github.com/rust-seq/seq-hash", branch = "avx512"}
+
 [package]
 name = "simd-minimizers"
 version = "3.0.0"
@@ -20,10 +24,12 @@ description = "A SIMD-accelerated library to compute random minimizers"
 [dependencies]
 clap = { version = "4.5.47", features = ["derive"] }
 itertools = "0.15"
-seq-hash = "0.2.0"
+seq-hash.workspace = true
 
 [dev-dependencies]
 rand = "0.10"
 
 [features]
+default = []
 scalar = ["seq-hash/scalar"]
+avx512 = ["seq-hash/avx512"]

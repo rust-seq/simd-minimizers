@@ -8,7 +8,6 @@ use simd_minimizers::{
 };
 use simd_minimizers_bench::*;
 use std::{cell::RefCell, hint::black_box};
-use wide::u32x8;
 
 fn main() {
     // Experiments for the (w,k) plot.
@@ -250,7 +249,7 @@ fn bench_minimizers(w: usize, k: usize) {
 
         v.clear();
         time("gather (sum)", params, || {
-            packed_seq.par_iter_bp(k + w - 1).it.sum::<u32x8>()
+            packed_seq.par_iter_bp(k + w - 1).it.sum::<S>()
         });
         time_v(v, "gather (vec)", params, || {
             packed_seq.par_iter_bp(k + w - 1).it

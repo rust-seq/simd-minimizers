@@ -2,9 +2,7 @@
 use std::mem::transmute;
 
 use crate::S;
-use packed_seq::Delay;
-use packed_seq::wide::{i32x8, u32x8};
-use seq_hash::packed_seq;
+use seq_hash::packed_seq::{Delay, wide};
 
 /// An iterator over windows that returns for each whether it's canonical or not.
 /// Canonical windows have >half TG characters.
@@ -45,17 +43,22 @@ pub fn canonical_mapper_simd(l: usize) -> (Delay, impl FnMut((S, S)) -> S) {
         "Window length l={l} must be odd to guarantee canonicality"
     );
 
+    #[cfg(not(feature = "avx512"))]
+    type SSigned = wide::i32x8;
+    #[cfg(feature = "avx512")]
+    type SSigned = wide::i32x16;
+
     // Cnt of odd characters, offset by -l/2 so >0 is canonical and <0 is not.
-    let mut cnt = i32x8::splat(-(l as i32));
-    let two = i32x8::splat(2);
+    let mut cnt = SSigned::splat(-(l as i32));
+    let two = SSigned::splat(2);
 
     (
         Delay(l - 1),
         #[inline(always)]
         move |(a, r)| {
-            cnt += unsafe { transmute::<_, i32x8>(a) } & two;
-            let out = unsafe { transmute::<_, S>(cnt.simd_gt(i32x8::ZERO)) };
-            cnt -= unsafe { transmute::<_, i32x8>(r) } & two;
+            cnt += unsafe { transmute::<_, SSigned>(a) } & two;
+            let out = unsafe { transmute::<_, S>(cnt.simd_gt(SSigned::ZERO)) };
+            cnt -= unsafe { transmute::<_, SSigned>(r) } & two;
             out
         },
     )

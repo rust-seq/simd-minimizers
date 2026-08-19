@@ -205,6 +205,7 @@ use minimizers::{
     canonical_minimizers_seq_scalar, canonical_minimizers_seq_simd, minimizers_seq_scalar,
     minimizers_seq_simd,
 };
+use packed_seq::L;
 use packed_seq::S;
 use packed_seq::Seq;
 use seq_hash::KmerHasher;

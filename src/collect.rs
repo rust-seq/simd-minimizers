@@ -8,8 +8,7 @@ use std::{
 };
 
 use crate::{S, minimizers::SKIPPED};
-use packed_seq::u32x8;
-use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose};
+use packed_seq::{ChunkIt, L, PaddedIt, intrinsics::transpose_back, u32x8};
 use seq_hash::packed_seq;
 
 pub fn collect_and_dedup_into_scalar(mut it: impl Iterator<Item = u32>, out_vec: &mut Vec<u32>) {
@@ -145,14 +144,14 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                     }
                 }
 
-                let mut write_idx = [0; 8];
+                let mut write_idx = [0; L];
                 // Vec of last pushed elements in each lane.
-                let mut old = [S::MAX; 8];
+                let mut old = [u32x8::MAX; L];
 
                 let len = it.len();
-                let lane_offsets: [S; 8] = from_fn(|i| S::splat((i * len) as u32));
+                let lane_offsets: [u32x8; L] = from_fn(|i| u32x8::splat((i * len) as u32));
                 let offsets: [u32; 8] = from_fn(|i| i as u32);
-                let mut offsets: S = S::new(offsets);
+                let mut offsets: u32x8 = u32x8::new(offsets);
 
                 let mut mask = S::ZERO;
                 let mut padding_i = 0;
@@ -173,7 +172,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                 // FIXME: IS this one slow?
                 let mut m = [S::ZERO; 8];
                 let mut i = 0;
-                let eight = S::splat(8);
+                let eight = u32x8::splat(8);
                 it.for_each(
                     #[inline(always)]
                     |x| {
@@ -183,7 +182,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                         let x = x | mask;
                         m[i % 8] = x;
                         if i % 8 == 7 {
-                            let t = transpose(m);
+                            let t = transpose_back(m);
                             for j in 0..8 {
                                 let lane = t[j];
                                 if write_idx[j] + 8 > v[j].len() {
@@ -235,7 +234,7 @@ impl<I: ChunkIt<S>> CollectAndDedup for PaddedIt<I> {
                 }
 
                 // Manually write the unfinished parts of length k=i%8.
-                let t = transpose(m);
+                let t = transpose_back(m);
                 let k = i % 8;
                 for j in 0..8 {
                     let lane = t[j].as_array();

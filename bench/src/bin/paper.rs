@@ -311,7 +311,7 @@ fn bench_minimizers(w: usize, k: usize) {
         });
     }
 
-    {
+    'x: {
         EXPERIMENT.with(|e| {
             *e.borrow_mut() = "external".to_string();
         });
@@ -326,6 +326,9 @@ fn bench_minimizers(w: usize, k: usize) {
                 .hasher(&can_hasher)
                 .run(packed_seq, v2);
         });
+        if *QUICK_MODE.get().unwrap() {
+            break 'x;
+        }
         time("mul simd-minimizers", params, || {
             v2.clear();
             minimizers(k, w).hasher(&fwd_mul_hasher).run(packed_seq, v2);

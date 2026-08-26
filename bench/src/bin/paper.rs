@@ -9,24 +9,33 @@ use simd_minimizers::{
     Cache, canonical_minimizers, collect::CollectAndDedup, minimizers, private::*,
 };
 use simd_minimizers_bench::*;
-use std::{cell::RefCell, hint::black_box};
+use std::{cell::RefCell, hint::black_box, sync::OnceLock};
 
 fn main() {
+    let quick = std::env::args().skip(1).any(|arg| arg == "--quick");
+    QUICK_MODE.set(quick).unwrap();
+
     // Experiments for the (w,k) plot.
     // Written to results-plot.json.
     // plot();
 
     // Experiments for the main result tables.
-    bench_minimizers(5, 31); // kraken
-    bench_minimizers(11, 21); // sshash
-    bench_minimizers(19, 19); // minimap
+    if quick {
+        bench_minimizers(11, 21); // sshash
+    } else {
+        bench_minimizers(5, 31); // kraken
+        bench_minimizers(11, 21); // sshash
+        bench_minimizers(19, 19); // minimap
+    }
 
     let results = RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
     let json = serde_json::to_string(&results).unwrap();
     std::fs::write("results.json", json).unwrap();
 
     // Additional experiments for human genome density and multithreaded results.
-    bench_human_genome();
+    if !quick {
+        bench_human_genome();
+    }
 
     // Experiment to test speed on short sequences.
     // Not in the paper.
@@ -41,6 +50,8 @@ thread_local! {
     static EXPERIMENT: std::cell::RefCell<String> = std::cell::RefCell::new("".to_string());
     static RESULTS: std::cell::RefCell<Vec<Result>> = std::cell::RefCell::new(vec![]);
 }
+
+static QUICK_MODE: OnceLock<bool> = OnceLock::new();
 
 #[derive(Clone, Copy)]
 struct Params {
@@ -362,6 +373,9 @@ fn bench_minimizers(w: usize, k: usize) {
         });
     }
 
+    if !*QUICK_MODE
+        .get()
+        .expect("quick mode must be initialized in main")
     {
         eprintln!("\nEXTERNAL\n");
 
@@ -534,24 +548,28 @@ fn time_ve<T: std::iter::Sum>(
     v.clear();
 }
 
-const REPEATS: usize = 5;
-
 fn time<T>(name: &str, params: Params, mut f: impl FnMut() -> T) {
-    for _ in 0..REPEATS {
+    let quick = *QUICK_MODE
+        .get()
+        .expect("quick mode must be initialized in main");
+    let repeats = if quick { 2 } else { 5 };
+    for repeat in 0..repeats {
         let start = std::time::Instant::now();
         black_box(f());
         let elapsed = start.elapsed().as_secs_f64();
         let elapsed_per = elapsed * 1_000_000_000. / params.n as f64;
-        println!("{name:<40}: {:6.2} s {:6.2} ns/elem", elapsed, elapsed_per);
-        RESULTS.with(|r| {
-            r.borrow_mut().push(Result {
-                experiment: EXPERIMENT.with(|e| e.borrow().clone()),
-                name: name.to_string(),
-                n: params.n,
-                k: params.k,
-                w: params.w,
-                time: elapsed_per,
-            })
-        });
+        if !quick || repeat + 1 == repeats {
+            println!("{name:<40}: {:6.2} s {:6.2} ns/elem", elapsed, elapsed_per);
+            RESULTS.with(|r| {
+                r.borrow_mut().push(Result {
+                    experiment: EXPERIMENT.with(|e| e.borrow().clone()),
+                    name: name.to_string(),
+                    n: params.n,
+                    k: params.k,
+                    w: params.w,
+                    time: elapsed_per,
+                })
+            });
+        }
     }
 }

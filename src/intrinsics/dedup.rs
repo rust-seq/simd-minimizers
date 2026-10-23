@@ -202,20 +202,54 @@ pub unsafe fn append_unique_vals_2(
     }
 }
 
-/// Byte shuffle across both 128-bit halves; out-of-range indices give zero.
+/// Extract duplicate bits from lanes that are either zero or all ones.
 #[cfg(any(
     target_feature = "neon",
     all(target_arch = "wasm32", target_feature = "simd128")
 ))]
 #[inline(always)]
+fn duplicate_mask(mask: S) -> usize {
+    #[cfg(target_feature = "neon")]
+    {
+        use seq_hash::packed_seq::wide::u32x4;
+        let [lo, hi]: [u32x4; 2] = unsafe { transmute(mask) };
+        let weights = u32x4::new([1, 2, 4, 8]);
+        ((lo & weights).reduce_add() | (hi & weights).reduce_add() << 4) as usize
+    }
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    {
+        mask.to_bitmask() as usize
+    }
+}
+
+/// Byte shuffle across both 128-bit halves; out-of-range indices give zero.
+#[cfg(target_feature = "neon")]
+#[inline(always)]
 fn shuffle(vals: S, key: &[u8; 32]) -> S {
-    use seq_hash::packed_seq::wide::i8x16;
-    // Each output byte selects from exactly one half. The other swizzle is
-    // out of range and returns zero, so OR combines the two selections.
-    let [lo, hi]: [i8x16; 2] = unsafe { transmute(vals) };
-    let keys: [i8x16; 2] = unsafe { transmute(*key) };
-    let result = keys.map(|k| lo.swizzle(k) | hi.swizzle(k - i8x16::splat(16)));
-    unsafe { transmute(result) }
+    use core::arch::aarch64::*;
+    unsafe {
+        let t: uint8x16x2_t = transmute(vals);
+        let k: [uint8x16_t; 2] = transmute(*key);
+        transmute([vqtbl2q_u8(t, k[0]), vqtbl2q_u8(t, k[1])])
+    }
+}
+
+/// Byte shuffle across both 128-bit halves; out-of-range indices give zero.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline(always)]
+fn shuffle(vals: S, key: &[u8; 32]) -> S {
+    use core::arch::wasm32::*;
+    unsafe {
+        let [lo, hi]: [v128; 2] = transmute(vals);
+        let keys: [v128; 2] = transmute(*key);
+        let result = keys.map(|k| {
+            v128_or(
+                i8x16_swizzle(lo, k),
+                i8x16_swizzle(hi, i8x16_sub(k, u8x16_splat(16))),
+            )
+        });
+        transmute(result)
+    }
 }
 
 /// For each of 256 masks of duplicate lanes, a byte shuffle that sends the
@@ -254,7 +288,7 @@ const UNIQSHUF_256: [[u8; 32]; 256] = {
 #[inline(always)]
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
-        let m = mask.to_bitmask() as usize;
+        let m = duplicate_mask(mask);
         let r = shuffle(vals, &UNIQSHUF_256[m]);
         v.as_mut_ptr()
             .add(*write_idx)
@@ -278,7 +312,7 @@ pub unsafe fn append_filtered_vals_2(
     write_idx: &mut usize,
 ) {
     unsafe {
-        let m = mask.to_bitmask() as usize;
+        let m = duplicate_mask(mask);
         let key = &UNIQSHUF_256[m];
         let r = shuffle(vals, key);
         let r2 = shuffle(vals2, key);
@@ -301,11 +335,26 @@ pub unsafe fn append_filtered_vals_2(
 ))]
 #[inline(always)]
 fn preceding(old: S, new: S) -> S {
-    let old = old.to_array();
-    let new = new.to_array();
-    S::new([
-        old[7], new[0], new[1], new[2], new[3], new[4], new[5], new[6],
-    ])
+    #[cfg(target_feature = "neon")]
+    unsafe {
+        use core::arch::aarch64::*;
+        let [_, old_hi]: [uint32x4_t; 2] = transmute(old);
+        let [new_lo, new_hi]: [uint32x4_t; 2] = transmute(new);
+        transmute([
+            vextq_u32::<3>(old_hi, new_lo),
+            vextq_u32::<3>(new_lo, new_hi),
+        ])
+    }
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    unsafe {
+        use core::arch::wasm32::*;
+        let [_, old_hi]: [v128; 2] = transmute(old);
+        let [new_lo, new_hi]: [v128; 2] = transmute(new);
+        transmute([
+            i32x4_shuffle::<3, 4, 5, 6>(old_hi, new_lo),
+            i32x4_shuffle::<3, 4, 5, 6>(new_lo, new_hi),
+        ])
+    }
 }
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).

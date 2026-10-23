@@ -1,14 +1,20 @@
 use crate::S;
 #[allow(unused)]
 use core::mem::transmute;
-use packed_seq::L;
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+use seq_hash::packed_seq::L;
+#[cfg(any(target_feature = "neon", test))]
 use seq_hash::packed_seq;
 
 #[cfg(target_feature = "neon")]
 use packed_seq::wide::{u32x4, u32x8};
 
 /// Append the values of `x` where `mask` is *false* to `v`.
-#[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[cfg(not(any(
+    target_feature = "avx2",
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+)))]
 #[inline(always)]
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
@@ -25,7 +31,11 @@ pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
-#[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[cfg(not(any(
+    target_feature = "avx2",
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+)))]
 #[inline(always)]
 pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     old: S,
@@ -51,7 +61,11 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).
 /// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]` and `vals2` to `v2[write_idx]`.
-#[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+#[cfg(not(any(
+    target_feature = "avx2",
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+)))]
 #[inline(always)]
 pub unsafe fn append_unique_vals_2(
     old: S,
@@ -319,6 +333,132 @@ pub unsafe fn append_unique_vals_2(
         let r2 = vqtbl2q_u8(t, I2);
         let prec: S = transmute((r1, r2));
         let dup = prec.simd_eq(new);
+        append_filtered_vals_2(vals, vals2, dup, v, v2, write_idx);
+    }
+}
+
+/// For each of 16 masks of duplicate lanes, a swizzle that sends the other
+/// u32 lanes of a `v128` to the beginning.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+const UNIQSHUF_WASM: [[u8; 16]; 16] = {
+    let mut t = [[0x80; 16]; 16];
+    let mut mask = 0;
+    while mask < 16 {
+        let mut out = 0;
+        let mut lane = 0;
+        while lane < 4 {
+            if mask & (1 << lane) == 0 {
+                let mut b = 0;
+                while b < 4 {
+                    t[mask][4 * out + b] = (4 * lane + b) as u8;
+                    b += 1;
+                }
+                out += 1;
+            }
+            lane += 1;
+        }
+        mask += 1;
+    }
+    t
+};
+
+/// Append unmasked values, compacting each four-lane half separately.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline(always)]
+pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
+    unsafe {
+        use core::arch::wasm32::*;
+
+        let vals: [v128; 2] = transmute(vals);
+        let mask: [v128; 2] = transmute(mask);
+        for h in 0..2 {
+            let m = i32x4_bitmask(mask[h]) as usize;
+            let key = v128_load(UNIQSHUF_WASM[m].as_ptr() as *const v128);
+            let ptr = v.as_mut_ptr().add(*write_idx) as *mut v128;
+            v128_store(ptr, i8x16_swizzle(vals[h], key));
+            *write_idx += 4 - m.count_ones() as usize;
+        }
+    }
+}
+
+/// Append unmasked values to both outputs.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline(always)]
+pub unsafe fn append_filtered_vals_2(
+    vals: S,
+    vals2: S,
+    mask: S,
+    v: &mut [u32],
+    v2: &mut [u32],
+    write_idx: &mut usize,
+) {
+    unsafe {
+        use core::arch::wasm32::*;
+
+        let vals: [v128; 2] = transmute(vals);
+        let vals2: [v128; 2] = transmute(vals2);
+        let mask: [v128; 2] = transmute(mask);
+        for h in 0..2 {
+            let m = i32x4_bitmask(mask[h]) as usize;
+            let key = v128_load(UNIQSHUF_WASM[m].as_ptr() as *const v128);
+            let ptr = v.as_mut_ptr().add(*write_idx) as *mut v128;
+            let ptr2 = v2.as_mut_ptr().add(*write_idx) as *mut v128;
+            v128_store(ptr, i8x16_swizzle(vals[h], key));
+            v128_store(ptr2, i8x16_swizzle(vals2[h], key));
+            *write_idx += 4 - m.count_ones() as usize;
+        }
+    }
+}
+
+/// The element preceding each lane of `new`: `[old[7], new[0], ..., new[6]]`.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline(always)]
+unsafe fn preceding(old: S, new: S) -> S {
+    unsafe {
+        use core::arch::wasm32::*;
+
+        let [_, old_hi]: [v128; 2] = transmute(old);
+        let [new_lo, new_hi]: [v128; 2] = transmute(new);
+        transmute([
+            i32x4_shuffle::<3, 4, 5, 6>(old_hi, new_lo),
+            i32x4_shuffle::<3, 4, 5, 6>(new_lo, new_hi),
+        ])
+    }
+}
+
+/// Dedup `new` after `old[7]`, appending the corresponding `vals`.
+#[inline(always)]
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
+    old: S,
+    new: S,
+    vals: S,
+    v: &mut [u32],
+    write_idx: &mut usize,
+) {
+    unsafe {
+        let mut dup = preceding(old, new).simd_eq(new);
+        if SKIP_MAX {
+            dup |= new.simd_eq(crate::minimizers::SIMD_SKIPPED);
+        }
+        append_filtered_vals(vals, dup, v, write_idx);
+    }
+}
+
+/// Dedup `new` after `old[7]`, appending both value streams.
+#[inline(always)]
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+pub unsafe fn append_unique_vals_2(
+    old: S,
+    new: S,
+    vals: S,
+    vals2: S,
+    v: &mut [u32],
+    v2: &mut [u32],
+    write_idx: &mut usize,
+) {
+    unsafe {
+        let dup = preceding(old, new).simd_eq(new);
         append_filtered_vals_2(vals, vals2, dup, v, v2, write_idx);
     }
 }

@@ -1,13 +1,11 @@
 use crate::S;
 #[allow(unused)]
 use core::mem::transmute;
-#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[cfg(not(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+)))]
 use seq_hash::packed_seq::L;
-#[cfg(any(target_feature = "neon", test))]
-use seq_hash::packed_seq;
-
-#[cfg(target_feature = "neon")]
-use packed_seq::wide::{u32x4, u32x8};
 
 /// Append the values of `x` where `mask` is *false* to `v`.
 #[cfg(not(any(
@@ -204,149 +202,98 @@ pub unsafe fn append_unique_vals_2(
     }
 }
 
+/// 128-bit primitives used by the shared NEON / wasm simd128 backend below.
 #[cfg(target_feature = "neon")]
-const POW1: u32x4 = u32x4::new([1, 2, 4, 8]);
-#[cfg(target_feature = "neon")]
-const POW2: u32x4 = u32x4::new([16, 32, 64, 128]);
-#[cfg(target_feature = "neon")]
-const NEW_OLD_MASK: S = S::new([!0, !0, !0, !0, !0, !0, !0, 0]);
-#[cfg(target_feature = "neon")]
-const I1: core::arch::aarch64::uint8x16_t =
-    unsafe { transmute([0x1F1E1D1C, 0x03020100, 0x07060504, 0x0B0A0908]) };
-#[cfg(target_feature = "neon")]
-const I2: core::arch::aarch64::uint8x16_t =
-    unsafe { transmute([0x0F0E0D0C, 0x13121110, 0x17161514, 0x1B1A1918]) };
+mod v128 {
+    use core::arch::aarch64::*;
 
-/// Append the values of `x` selected by `mask` to `v`.
-#[cfg(target_feature = "neon")]
-#[inline(always)]
-pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
-    unsafe {
-        use core::arch::aarch64::vaddvq_u32;
+    pub type V = uint32x4_t;
 
-        let (m1, m2): (u32x4, u32x4) = transmute(mask);
-        let m1 = vaddvq_u32(transmute(m1 & POW1));
-        let m2 = vaddvq_u32(transmute(m2 & POW2));
-        let mask = (m1 | m2) as usize;
-        let numberofnewvalues = L - mask.count_ones() as usize;
-        let key = UNIQSHUF_NEON[mask];
-        append_filtered_vals_from_key(vals, key, v, write_idx);
-        *write_idx += numberofnewvalues;
+    /// One bit per lane, set where the lane is all ones.
+    #[inline(always)]
+    pub unsafe fn bitmask(m: V) -> usize {
+        const POW: [u32; 4] = [1, 2, 4, 8];
+        unsafe { vaddvq_u32(vandq_u32(m, vld1q_u32(POW.as_ptr()))) as usize }
     }
-}
 
-#[cfg(target_feature = "neon")]
-#[inline(always)]
-pub unsafe fn append_filtered_vals_2(
-    vals: S,
-    vals2: S,
-    mask: S,
-    v: &mut [u32],
-    v2: &mut [u32],
-    write_idx: &mut usize,
-) {
-    unsafe {
-        use core::arch::aarch64::vaddvq_u32;
-
-        let (m1, m2): (u32x4, u32x4) = transmute(mask);
-        let m1 = vaddvq_u32(transmute(m1 & POW1));
-        let m2 = vaddvq_u32(transmute(m2 & POW2));
-        let mask = (m1 | m2) as usize;
-        let numberofnewvalues = L - mask.count_ones() as usize;
-        let key = UNIQSHUF_NEON[mask];
-        append_filtered_vals_from_key(vals, key, v, write_idx);
-        append_filtered_vals_from_key(vals2, key, v2, write_idx);
-        *write_idx += numberofnewvalues;
+    /// `[a[3], b[0], b[1], b[2]]`.
+    #[inline(always)]
+    pub unsafe fn shift_in(a: V, b: V) -> V {
+        unsafe { vextq_u32::<3>(a, b) }
     }
-}
 
-#[cfg(target_feature = "neon")]
-#[inline(always)]
-unsafe fn append_filtered_vals_from_key(vals: S, key: S, v: &mut [u32], write_idx: &mut usize) {
-    unsafe {
-        use core::arch::aarch64::{vqtbl2q_u8, vst1_u32_x4};
-
-        let (i1, i2) = transmute(key);
-        let t = transmute(vals);
-        let r1 = vqtbl2q_u8(t, i1);
-        let r2 = vqtbl2q_u8(t, i2);
-        let val: S = transmute((r1, r2));
-        vst1_u32_x4(v.as_mut_ptr().add(*write_idx), transmute(val));
-    }
-}
-
-/// Dedup adjacent `new` values (starting with the last element of `old`).
-/// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
-///
-/// Somewhat based on Daniel Lemire's blog.
-/// <https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/>
-/// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
-#[inline(always)]
-#[cfg(target_feature = "neon")]
-pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
-    old: S,
-    new: S,
-    vals: S,
-    v: &mut [u32],
-    write_idx: &mut usize,
-) {
-    unsafe {
-        use core::arch::aarch64::vqtbl2q_u8;
-
-        let recon = NEW_OLD_MASK.blend(new, old);
-        let t = transmute(recon);
-        let r1 = vqtbl2q_u8(t, I1);
-        let r2 = vqtbl2q_u8(t, I2);
-        let prec: S = transmute((r1, r2));
-
-        let mut dup = prec.simd_eq(new);
-        if SKIP_MAX {
-            dup |= new.simd_eq(crate::minimizers::SIMD_SKIPPED);
+    /// Byte shuffle of the 32 bytes `[v[0], v[1]]` by `key`; out-of-range indices give 0.
+    #[inline(always)]
+    pub unsafe fn shuffle(v: [V; 2], key: &[u8; 32]) -> [V; 2] {
+        unsafe {
+            let t = uint8x16x2_t(vreinterpretq_u8_u32(v[0]), vreinterpretq_u8_u32(v[1]));
+            let k: [uint8x16_t; 2] = core::mem::transmute(*key);
+            [
+                vreinterpretq_u32_u8(vqtbl2q_u8(t, k[0])),
+                vreinterpretq_u32_u8(vqtbl2q_u8(t, k[1])),
+            ]
         }
-        append_filtered_vals(vals, dup, v, write_idx);
+    }
+
+    #[inline(always)]
+    pub unsafe fn store(ptr: *mut u32, v: V) {
+        unsafe { vst1q_u32(ptr, v) }
     }
 }
 
-/// Dedup adjacent `new` values (starting with the last element of `old`).
-/// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]` and `vals2` to `v2[write_idx]`.
-///
-/// Somewhat based on Daniel Lemire's blog.
-/// <https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/>
-/// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
-#[inline(always)]
-#[cfg(target_feature = "neon")]
-pub unsafe fn append_unique_vals_2(
-    old: S,
-    new: S,
-    vals: S,
-    vals2: S,
-    v: &mut [u32],
-    v2: &mut [u32],
-    write_idx: &mut usize,
-) {
-    unsafe {
-        use core::arch::aarch64::vqtbl2q_u8;
-
-        let recon = NEW_OLD_MASK.blend(new, old);
-        let t = transmute(recon);
-        let r1 = vqtbl2q_u8(t, I1);
-        let r2 = vqtbl2q_u8(t, I2);
-        let prec: S = transmute((r1, r2));
-        let dup = prec.simd_eq(new);
-        append_filtered_vals_2(vals, vals2, dup, v, v2, write_idx);
-    }
-}
-
-/// For each of 16 masks of duplicate lanes, a swizzle that sends the other
-/// u32 lanes of a `v128` to the beginning.
+/// 128-bit primitives used by the shared NEON / wasm simd128 backend below.
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-const UNIQSHUF_WASM: [[u8; 16]; 16] = {
-    let mut t = [[0x80; 16]; 16];
+mod v128 {
+    use core::arch::wasm32::*;
+
+    pub type V = v128;
+
+    /// One bit per lane, set where the lane is all ones.
+    #[inline(always)]
+    pub unsafe fn bitmask(m: V) -> usize {
+        i32x4_bitmask(m) as usize
+    }
+
+    /// `[a[3], b[0], b[1], b[2]]`.
+    #[inline(always)]
+    pub unsafe fn shift_in(a: V, b: V) -> V {
+        i32x4_shuffle::<3, 4, 5, 6>(a, b)
+    }
+
+    /// Byte shuffle of the 32 bytes `[v[0], v[1]]` by `key`; out-of-range indices give 0.
+    #[inline(always)]
+    pub unsafe fn shuffle(v: [V; 2], key: &[u8; 32]) -> [V; 2] {
+        unsafe {
+            let k: [v128; 2] = core::mem::transmute(*key);
+            let sixteen = u8x16_splat(16);
+            k.map(|k| {
+                v128_or(
+                    i8x16_swizzle(v[0], k),
+                    i8x16_swizzle(v[1], i8x16_sub(k, sixteen)),
+                )
+            })
+        }
+    }
+
+    #[inline(always)]
+    pub unsafe fn store(ptr: *mut u32, v: V) {
+        unsafe { v128_store(ptr as *mut v128, v) }
+    }
+}
+
+/// For each of 256 masks of duplicate lanes, a byte shuffle that sends the
+/// other u32 lanes to the beginning.
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
+const UNIQSHUF_256: [[u8; 32]; 256] = {
+    let mut t = [[0x80; 32]; 256];
     let mut mask = 0;
-    while mask < 16 {
+    while mask < 256 {
         let mut out = 0;
         let mut lane = 0;
-        while lane < 4 {
+        while lane < 8 {
             if mask & (1 << lane) == 0 {
                 let mut b = 0;
                 while b < 4 {
@@ -362,27 +309,29 @@ const UNIQSHUF_WASM: [[u8; 16]; 16] = {
     t
 };
 
-/// Append unmasked values, compacting each four-lane half separately.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+/// Append the values of `x` where `mask` is *false* to `v`.
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
 #[inline(always)]
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
-        use core::arch::wasm32::*;
-
-        let vals: [v128; 2] = transmute(vals);
-        let mask: [v128; 2] = transmute(mask);
-        for h in 0..2 {
-            let m = i32x4_bitmask(mask[h]) as usize;
-            let key = v128_load(UNIQSHUF_WASM[m].as_ptr() as *const v128);
-            let ptr = v.as_mut_ptr().add(*write_idx) as *mut v128;
-            v128_store(ptr, i8x16_swizzle(vals[h], key));
-            *write_idx += 4 - m.count_ones() as usize;
-        }
+        let vals: [v128::V; 2] = transmute(vals);
+        let mask: [v128::V; 2] = transmute(mask);
+        let m = v128::bitmask(mask[0]) | v128::bitmask(mask[1]) << 4;
+        let r = v128::shuffle(vals, &UNIQSHUF_256[m]);
+        let p = v.as_mut_ptr().add(*write_idx);
+        v128::store(p, r[0]);
+        v128::store(p.add(4), r[1]);
+        *write_idx += 8 - m.count_ones() as usize;
     }
 }
 
-/// Append unmasked values to both outputs.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
 #[inline(always)]
 pub unsafe fn append_filtered_vals_2(
     vals: S,
@@ -393,42 +342,51 @@ pub unsafe fn append_filtered_vals_2(
     write_idx: &mut usize,
 ) {
     unsafe {
-        use core::arch::wasm32::*;
-
-        let vals: [v128; 2] = transmute(vals);
-        let vals2: [v128; 2] = transmute(vals2);
-        let mask: [v128; 2] = transmute(mask);
-        for h in 0..2 {
-            let m = i32x4_bitmask(mask[h]) as usize;
-            let key = v128_load(UNIQSHUF_WASM[m].as_ptr() as *const v128);
-            let ptr = v.as_mut_ptr().add(*write_idx) as *mut v128;
-            let ptr2 = v2.as_mut_ptr().add(*write_idx) as *mut v128;
-            v128_store(ptr, i8x16_swizzle(vals[h], key));
-            v128_store(ptr2, i8x16_swizzle(vals2[h], key));
-            *write_idx += 4 - m.count_ones() as usize;
-        }
+        let vals: [v128::V; 2] = transmute(vals);
+        let vals2: [v128::V; 2] = transmute(vals2);
+        let mask: [v128::V; 2] = transmute(mask);
+        let m = v128::bitmask(mask[0]) | v128::bitmask(mask[1]) << 4;
+        let key = &UNIQSHUF_256[m];
+        let r = v128::shuffle(vals, key);
+        let r2 = v128::shuffle(vals2, key);
+        let p = v.as_mut_ptr().add(*write_idx);
+        let p2 = v2.as_mut_ptr().add(*write_idx);
+        v128::store(p, r[0]);
+        v128::store(p.add(4), r[1]);
+        v128::store(p2, r2[0]);
+        v128::store(p2.add(4), r2[1]);
+        *write_idx += 8 - m.count_ones() as usize;
     }
 }
 
 /// The element preceding each lane of `new`: `[old[7], new[0], ..., new[6]]`.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
 #[inline(always)]
 unsafe fn preceding(old: S, new: S) -> S {
     unsafe {
-        use core::arch::wasm32::*;
-
-        let [_, old_hi]: [v128; 2] = transmute(old);
-        let [new_lo, new_hi]: [v128; 2] = transmute(new);
+        let [_, old_hi]: [v128::V; 2] = transmute(old);
+        let [new_lo, new_hi]: [v128::V; 2] = transmute(new);
         transmute([
-            i32x4_shuffle::<3, 4, 5, 6>(old_hi, new_lo),
-            i32x4_shuffle::<3, 4, 5, 6>(new_lo, new_hi),
+            v128::shift_in(old_hi, new_lo),
+            v128::shift_in(new_lo, new_hi),
         ])
     }
 }
 
-/// Dedup `new` after `old[7]`, appending the corresponding `vals`.
+/// Dedup adjacent `new` values (starting with the last element of `old`).
+/// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]`.
+///
+/// Somewhat based on Daniel Lemire's blog.
+/// <https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/>
+/// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
 #[inline(always)]
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     old: S,
     new: S,
@@ -445,9 +403,17 @@ pub unsafe fn append_unique_vals<const SKIP_MAX: bool>(
     }
 }
 
-/// Dedup `new` after `old[7]`, appending both value streams.
+/// Dedup adjacent `new` values (starting with the last element of `old`).
+/// If an element is different from the preceding element, append the corresponding element of `vals` to `v[write_idx]` and `vals2` to `v2[write_idx]`.
+///
+/// Somewhat based on Daniel Lemire's blog.
+/// <https://lemire.me/blog/2017/04/10/removing-duplicates-from-lists-quickly/>
+/// <https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/edfd0e8b809d9a57527a7990c4bb44b9d1d05a69/2017/04/10/removeduplicates.cpp>
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
 #[inline(always)]
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 pub unsafe fn append_unique_vals_2(
     old: S,
     new: S,
@@ -726,276 +692,10 @@ const UNIQSHUF: [S; 256] = unsafe {transmute([
 0,0,0,0,0,0,0,0,
 ])};
 
-#[cfg(target_feature = "neon")]
-#[allow(clippy::erasing_op, clippy::identity_op)]
-#[rustfmt::skip]
-const UNIQSHUF_NEON: [u32x8; 256] = unsafe {
-const M: u32 = 0x04_04_04_04;
-const O: u32 = 0x03_02_01_00;
-transmute([
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-5*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-6*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-5*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-7*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-5*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-6*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-5*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-4*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-3*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,2*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,2*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,2*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-2*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,1*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-1*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,0*M+O,
-])
-};
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use packed_seq::u32x8 as S;
+    use seq_hash::packed_seq::u32x8 as S;
     use std::time::Instant;
     const L: usize = 8;
 

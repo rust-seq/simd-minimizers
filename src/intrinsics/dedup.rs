@@ -202,83 +202,20 @@ pub unsafe fn append_unique_vals_2(
     }
 }
 
-/// 128-bit primitives used by the shared NEON / wasm simd128 backend below.
-#[cfg(target_feature = "neon")]
-mod v128 {
-    use core::arch::aarch64::*;
-
-    pub type V = uint32x4_t;
-
-    /// One bit per lane, set where the lane is all ones.
-    #[inline(always)]
-    pub unsafe fn bitmask(m: V) -> usize {
-        const POW: [u32; 4] = [1, 2, 4, 8];
-        unsafe { vaddvq_u32(vandq_u32(m, vld1q_u32(POW.as_ptr()))) as usize }
-    }
-
-    /// `[a[3], b[0], b[1], b[2]]`.
-    #[inline(always)]
-    pub unsafe fn shift_in(a: V, b: V) -> V {
-        unsafe { vextq_u32::<3>(a, b) }
-    }
-
-    /// Byte shuffle of the 32 bytes `[v[0], v[1]]` by `key`; out-of-range indices give 0.
-    #[inline(always)]
-    pub unsafe fn shuffle(v: [V; 2], key: &[u8; 32]) -> [V; 2] {
-        unsafe {
-            let t = uint8x16x2_t(vreinterpretq_u8_u32(v[0]), vreinterpretq_u8_u32(v[1]));
-            let k: [uint8x16_t; 2] = core::mem::transmute(*key);
-            [
-                vreinterpretq_u32_u8(vqtbl2q_u8(t, k[0])),
-                vreinterpretq_u32_u8(vqtbl2q_u8(t, k[1])),
-            ]
-        }
-    }
-
-    #[inline(always)]
-    pub unsafe fn store(ptr: *mut u32, v: V) {
-        unsafe { vst1q_u32(ptr, v) }
-    }
-}
-
-/// 128-bit primitives used by the shared NEON / wasm simd128 backend below.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-mod v128 {
-    use core::arch::wasm32::*;
-
-    pub type V = v128;
-
-    /// One bit per lane, set where the lane is all ones.
-    #[inline(always)]
-    pub unsafe fn bitmask(m: V) -> usize {
-        i32x4_bitmask(m) as usize
-    }
-
-    /// `[a[3], b[0], b[1], b[2]]`.
-    #[inline(always)]
-    pub unsafe fn shift_in(a: V, b: V) -> V {
-        i32x4_shuffle::<3, 4, 5, 6>(a, b)
-    }
-
-    /// Byte shuffle of the 32 bytes `[v[0], v[1]]` by `key`; out-of-range indices give 0.
-    #[inline(always)]
-    pub unsafe fn shuffle(v: [V; 2], key: &[u8; 32]) -> [V; 2] {
-        unsafe {
-            let k: [v128; 2] = core::mem::transmute(*key);
-            let sixteen = u8x16_splat(16);
-            k.map(|k| {
-                v128_or(
-                    i8x16_swizzle(v[0], k),
-                    i8x16_swizzle(v[1], i8x16_sub(k, sixteen)),
-                )
-            })
-        }
-    }
-
-    #[inline(always)]
-    pub unsafe fn store(ptr: *mut u32, v: V) {
-        unsafe { v128_store(ptr as *mut v128, v) }
-    }
+/// Byte shuffle across both 128-bit halves; out-of-range indices give zero.
+#[cfg(any(
+    target_feature = "neon",
+    all(target_arch = "wasm32", target_feature = "simd128")
+))]
+#[inline(always)]
+fn shuffle(vals: S, key: &[u8; 32]) -> S {
+    use seq_hash::packed_seq::wide::i8x16;
+    // Each output byte selects from exactly one half. The other swizzle is
+    // out of range and returns zero, so OR combines the two selections.
+    let [lo, hi]: [i8x16; 2] = unsafe { transmute(vals) };
+    let keys: [i8x16; 2] = unsafe { transmute(*key) };
+    let result = keys.map(|k| lo.swizzle(k) | hi.swizzle(k - i8x16::splat(16)));
+    unsafe { transmute(result) }
 }
 
 /// For each of 256 masks of duplicate lanes, a byte shuffle that sends the
@@ -317,13 +254,12 @@ const UNIQSHUF_256: [[u8; 32]; 256] = {
 #[inline(always)]
 pub unsafe fn append_filtered_vals(vals: S, mask: S, v: &mut [u32], write_idx: &mut usize) {
     unsafe {
-        let vals: [v128::V; 2] = transmute(vals);
-        let mask: [v128::V; 2] = transmute(mask);
-        let m = v128::bitmask(mask[0]) | v128::bitmask(mask[1]) << 4;
-        let r = v128::shuffle(vals, &UNIQSHUF_256[m]);
-        let p = v.as_mut_ptr().add(*write_idx);
-        v128::store(p, r[0]);
-        v128::store(p.add(4), r[1]);
+        let m = mask.to_bitmask() as usize;
+        let r = shuffle(vals, &UNIQSHUF_256[m]);
+        v.as_mut_ptr()
+            .add(*write_idx)
+            .cast::<S>()
+            .write_unaligned(r);
         *write_idx += 8 - m.count_ones() as usize;
     }
 }
@@ -342,19 +278,18 @@ pub unsafe fn append_filtered_vals_2(
     write_idx: &mut usize,
 ) {
     unsafe {
-        let vals: [v128::V; 2] = transmute(vals);
-        let vals2: [v128::V; 2] = transmute(vals2);
-        let mask: [v128::V; 2] = transmute(mask);
-        let m = v128::bitmask(mask[0]) | v128::bitmask(mask[1]) << 4;
+        let m = mask.to_bitmask() as usize;
         let key = &UNIQSHUF_256[m];
-        let r = v128::shuffle(vals, key);
-        let r2 = v128::shuffle(vals2, key);
-        let p = v.as_mut_ptr().add(*write_idx);
-        let p2 = v2.as_mut_ptr().add(*write_idx);
-        v128::store(p, r[0]);
-        v128::store(p.add(4), r[1]);
-        v128::store(p2, r2[0]);
-        v128::store(p2.add(4), r2[1]);
+        let r = shuffle(vals, key);
+        let r2 = shuffle(vals2, key);
+        v.as_mut_ptr()
+            .add(*write_idx)
+            .cast::<S>()
+            .write_unaligned(r);
+        v2.as_mut_ptr()
+            .add(*write_idx)
+            .cast::<S>()
+            .write_unaligned(r2);
         *write_idx += 8 - m.count_ones() as usize;
     }
 }
@@ -365,15 +300,12 @@ pub unsafe fn append_filtered_vals_2(
     all(target_arch = "wasm32", target_feature = "simd128")
 ))]
 #[inline(always)]
-unsafe fn preceding(old: S, new: S) -> S {
-    unsafe {
-        let [_, old_hi]: [v128::V; 2] = transmute(old);
-        let [new_lo, new_hi]: [v128::V; 2] = transmute(new);
-        transmute([
-            v128::shift_in(old_hi, new_lo),
-            v128::shift_in(new_lo, new_hi),
-        ])
-    }
+fn preceding(old: S, new: S) -> S {
+    let old = old.to_array();
+    let new = new.to_array();
+    S::new([
+        old[7], new[0], new[1], new[2], new[3], new[4], new[5], new[6],
+    ])
 }
 
 /// Dedup adjacent `new` values (starting with the last element of `old`).

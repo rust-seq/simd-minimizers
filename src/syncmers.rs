@@ -117,7 +117,7 @@ impl<I: ChunkIt<u32x8>> CollectSyncmers for PaddedIt<I> {
                                 | x.simd_eq(lane_offsets + S::splat(w as u32 - 1))
                         };
                         // current window position if syncmer, else u32::MAX
-                        let y = is_syncmer.blend(lane_offsets, u32x8::MAX);
+                        let y = is_syncmer.select(lane_offsets, u32x8::MAX);
 
                         m[i % 8] = y;
                         if i % 8 == 7 {

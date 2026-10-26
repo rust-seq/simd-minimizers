@@ -4,6 +4,10 @@
 
 ## git
 
+- Add dedicated support for wasm/simd128; mostly shared with the NEON
+  implementation [#25](https://github.com/rust-seq/simd-minimizers/pull/25).
+- Make `clap` a dev-dependency.
+
 ## 3.0.0
 - Bump `packed-seq` and `seq-hash`, new `wide` version with potential breaking syntax changes:
   - `.as_array_ref()` -> `.as_array()`

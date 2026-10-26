@@ -4,6 +4,8 @@
 
 ## git
 
+## 3.1.0
+
 - Add dedicated support for wasm/simd128; mostly shared with the NEON
   implementation [#25](https://github.com/rust-seq/simd-minimizers/pull/25).
 - Make `clap` a dev-dependency.

@@ -1002,7 +1002,7 @@ checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
 
 [[package]]
 name = "simd-minimizers"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "clap",
  "itertools 0.15.0",

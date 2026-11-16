@@ -48,7 +48,7 @@
 //!
 //! _Syncmers_ are (in our notation) windows of length `l = w + k - 1` characters where the minimizer k-mer is a prefix or suffix.
 //! (Or, in classical notation, `k`-mers with the smallest `s`-mer as prefix or suffix.)
-//! These can be computed by using [`fn@syncmers`] or [`canonical_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
+//! These can be computed by using [`fn@closed_syncmers`] or [`canonical_closed_syncmers`] instead of [`minimizers`] or [`canonical_minimizers`].
 //! To obtain their values via [`Output::values_u64`], `l` (rather than `k`) has to be at most 32.
 //!
 //! Note that canonical syncmers are chosen as the minimum of the forward and reverse-complement k-mer representation.

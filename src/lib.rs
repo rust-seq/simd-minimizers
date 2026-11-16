@@ -63,6 +63,14 @@
 //!
 //! When the input is ASCII-encoded DNA, either use the `AsciiSeq` and `AsciiSeqVec` types, or (usually preferred) first convert to `PackedSeqVec`.
 //!
+//! ### `PackedNSeq` and reading from fasta
+//!
+//! A [`packed_seq::PackedNSeq`] stores a secondary bitstring to indicate ambiguous characters.
+//! Use [`packed_seq::PackedNSeqVec::from_fastx`] to read a fasta file into a single allocation of packed records.
+//! Records are then separated by `N` characters, so that
+//! [`Builder::run_skip_ambiguous_windows`] can be used to compute all
+//! minimizers at once, excluding any windows containing an `N`.
+//!
 //! ## Hash function
 //!
 //! By default, the library uses the `ntHash` hash function, which maps each DNA base `ACTG` to a pseudo-random value using a table lookup.
@@ -138,6 +146,19 @@
 //! }
 //! rc_vals.reverse();
 //! assert_eq!(rc_vals, fwd_vals);
+//! ```
+//!
+//! To read a FASTA or FASTQ file, use [`packed_seq::PackedNSeqVec::from_fastx`].
+//! Records are separated by an `N`, and windown containing an `N` are automatically skipped.
+//!
+//! ```no_run
+//! use simd_minimizers::{canonical_minimizers, packed_seq::{PackedNSeqVec, SeqVec}};
+//!
+//! let nseq = PackedNSeqVec::from_fastx(std::path::Path::new("path.fa"));
+//! let k = 5;
+//! let w = 7;
+//! let positions = canonical_minimizers(k, w)
+//!     .run_skip_ambiguous_windows_once(nseq.as_slice());
 //! ```
 //!
 //! #### Seeded hasher

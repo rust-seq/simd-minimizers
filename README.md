@@ -36,7 +36,7 @@ Full documentation can be found on [docs.rs](https://docs.rs/simd-minimizers).
 
 ```rust
 use simd_minimizers::packed_seq;
-use packed_seq::{PackedSeqVec, SeqVec};
+use packed_seq::{PackedSeqVec, PackedNSeqVec, SeqVec};
 
 let seq = b"ACGTGCTCAGAGACTCAGAGGA";
 let packed_seq = PackedSeqVec::from_ascii(seq);
@@ -66,6 +66,19 @@ let syncmer_vals: Vec<u64> = canonical_syncmers(k, w)
     .run(packed_seq.as_slice(), &mut syncmer_positions)
     .values_u64()
     .collect();
+```
+
+### Computing all minimizers in a Fasta file
+
+``` rust
+use simd_minimizers::packed_seq;
+use packed_seq::{PackedNSeqVec, SeqVec};
+// Or from_fastx_parallel if you don't care about record order.
+let nseq = PackedNSeqVec::from_fastx(std::path::Path::new("path.fa"));
+
+let k = 5;
+let w = 7;
+let poss = canonical_minimizers(k, w).run_skip_ambiguous_windows_once(nseq.as_slice());
 ```
 
 ## Benchmarks

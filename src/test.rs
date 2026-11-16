@@ -93,15 +93,24 @@ fn minimizers_canonical() {
             let hasher = hasher(k);
             let m = canonical_minimizers(k, w).hasher(&hasher);
 
+            let naive = ascii_seq
+                .0
+                .windows(w + k - 1)
+                .enumerate()
+                .map(|(pos, seq)| (pos + one_canonical_minimizer(AsciiSeq(seq), &hasher)) as u32)
+                .dedup()
+                .collect::<Vec<_>>();
+
             let scalar_ascii = m.run_scalar_once(ascii_seq);
             let scalar_packed = m.run_scalar_once(packed_seq);
             let simd_ascii = m.run_once(ascii_seq);
             let simd_packed = m.run_once(packed_seq);
 
             let len = ascii_seq.len();
-            assert_eq!(scalar_ascii, scalar_packed, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_ascii, "k={k}, w={w}, len={len}");
-            assert_eq!(scalar_ascii, simd_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, scalar_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, scalar_packed, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, simd_ascii, "k={k}, w={w}, len={len}");
+            assert_eq!(naive, simd_packed, "k={k}, w={w}, len={len}");
         });
     }
     f(NtHasher::<true>::new);

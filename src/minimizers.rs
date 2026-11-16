@@ -27,7 +27,26 @@ pub fn one_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
         .unwrap()
 }
 
-// FIMXE: Add one_canonical_minimizer
+/// Canonical minimizer position of a single window.
+pub fn one_canonical_minimizer<'s>(seq: impl Seq<'s>, hasher: &impl KmerHasher) -> usize {
+    assert!(hasher.is_canonical());
+    assert!(
+        seq.len() % 2 == 1,
+        "Window length must be odd to guarantee canonicality"
+    );
+    let canonical = seq.iter_bp().filter(|&bp| bp & 2 != 0).count() > seq.len() / 2;
+    hasher
+        .hash_kmers_scalar(seq)
+        .enumerate()
+        .min_by_key(|&(pos, hash)| {
+            (
+                hash & 0xffff_0000,
+                if canonical { pos } else { usize::MAX - pos },
+            )
+        })
+        .unwrap()
+        .0
+}
 
 /// Returns an iterator over the absolute positions of the minimizers of a sequence.
 /// Returns one value for each window of size `w+k-1` in the input. Use

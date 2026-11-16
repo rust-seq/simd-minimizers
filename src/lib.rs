@@ -229,7 +229,7 @@ use packed_seq::Seq;
 use packed_seq::u32x8 as S;
 use seq_hash::KmerHasher;
 
-pub use minimizers::one_minimizer;
+pub use minimizers::{one_canonical_minimizer, one_minimizer};
 use seq_hash::NtHasher;
 pub use sliding_min::Cache;
 use syncmers::CollectSyncmers;
